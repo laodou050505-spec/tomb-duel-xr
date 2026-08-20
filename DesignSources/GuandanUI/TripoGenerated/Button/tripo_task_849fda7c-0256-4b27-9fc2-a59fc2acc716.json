@@ -1,0 +1,19 @@
+{
+  "task_id": "849fda7c-0256-4b27-9fc2-a59fc2acc716",
+  "status": "success",
+  "type": "text_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "A single premium game button texture, front-facing orthographic, wide landscape canvas, one wide horizontal button frame centered and filling 94 percent of the image. Ancient Chinese tomb card-table aesthetic: dark red-black lacquer center, aged oxidized bronze thin rim, restrained cinnabar end caps, tiny dark jade inlay accents. Quiet empty center for Chinese label, strong readable silhouette, low specular and matte surface. No text, no letters, no numbers, no icons, no cards, no characters, no scene, no perspective, no glow, no gold shine, symmetrical, production-ready nine-slice UI texture.",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260817/849fda7c-0256-4b27-9fc2-a59fc2acc716/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTcvODQ5ZmRhN2MtMDI1Ni00YjI3LTlmYzItYTU5ZmMyYWNjNzE2L2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcwNjQxMDR9fX1dfQ__&Signature=UXz-OE2Aqfi6qTpUEUx-7gCnAJfSo-Wo99IQy6zsnRayewFBn7hU00WIrplQtp8z2ClOO8CvZFhRGrwyzdWyv-KTiBu9m7rCwOclykbhc1xqXppo2lCc6UYqcI1YdxPNWKesuPAe9XQykaXjJL5Ws~Oy~PjuxQWCLFF88sdw7SKZrGzR9RKB3Npj8KBcXjMzWhh77oEsZn1mQ1mHD~beAszVqq0ccwgmaFpFuVeFsC~CQAVyfgz0aEIf8pr5rmpcRhrSFCnogukr0AUfiBesekoQ9IGF9S9th4jN3voCb9UVDWmWWTdjdfnNIBJg2329M~fptYqCyscwXUAPB4p~Sw__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-17T14:41:25.755399Z",
+  "completed_at": "2026-08-17T14:41:42.749403Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/Assets/Resources/GuandanUI/Generated/Button/01_generated_image_url.png"
+  ]
+}

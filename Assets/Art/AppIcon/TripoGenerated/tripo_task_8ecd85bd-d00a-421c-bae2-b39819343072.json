@@ -1,0 +1,19 @@
+{
+  "task_id": "8ecd85bd-d00a-421c-bae2-b39819343072",
+  "status": "success",
+  "type": "text_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "Use case: stylized-concept. Asset type: square mobile and PICO game application icon, at least 512 by 512 pixels. Primary request: a single ornate ancient Chinese bronze treasure chest, lid slightly open, glowing warm gold relic light within, sitting before a dark earthen tomb doorway. Style/medium: premium stylized 3D game key art, matching a Chinese underground tomb card-and-treasure game. Composition/framing: perfectly centered hero chest, large readable silhouette, symmetrical composition, square 1:1 icon framing, generous clean contrast around the chest, no border, no UI panel. Lighting/mood: dramatic warm gold and vermilion glow from the chest, jade-green oxidized bronze cloud motifs, deep charcoal tomb background, cinematic volumetric light. Materials/textures: weathered bronze, oxidized jade patina, carved stone, subtle treasure sparks. Constraints: no people, no playing cards, no dice, no hands, no logos, no letters, no Chinese characters, no numbers, no watermark, no text of any kind; avoid tiny clutter; keep all important features inside the central safe area.",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260819/8ecd85bd-d00a-421c-bae2-b39819343072/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTkvOGVjZDg1YmQtZDAwYS00MjFjLWJhZTItYjM5ODE5MzQzMDcyL2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcxOTY3Mzl9fX1dfQ__&Signature=PHOdTJIymO1vvw2Q392NuxDQQp4e0ULQUBWX~Rb~JB66A8VUppBwN1MPtkBTvCVze6BRJEaLE2FX6CIaD2GEmWqDkP8yvqFOW9V7TC8~jHM0OiOaThirk60ttzshaiul8-SBN5zsxbdbevQw3Wb6fjIb4qPX~j1hOzHWR6WOYL5ipU8eNi6fG3Rv7Gz-KRqISS0kBdU6z8oCYdCEaEOPCXhc5odepCNIiUEyROVDliB9H2Ge2v5MLOnTergANaw4cgg99KFgGXA1Pnb5kvS2D6SmauaHnwyYVlQj1n~Rp1cbil-RV4ore401DYout1ic5lsDbjGEybsZKyDfEHgQDw__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-19T03:32:03.089066Z",
+  "completed_at": "2026-08-19T03:32:17.655065Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/Assets/Art/AppIcon/TripoGenerated/01_generated_image_url.png"
+  ]
+}

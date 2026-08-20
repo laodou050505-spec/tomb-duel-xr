@@ -1,0 +1,19 @@
+{
+  "task_id": "96f5a1f8-2697-443c-90f8-ff3d85eb449d",
+  "status": "success",
+  "type": "text_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "A single flat game UI asset only: an ornate Chinese tomb archaeology game modal panel, black lacquer and oxidized bronze frame, vermilion corner seals, jade inlay, symmetrical rectangular panel with large empty dark center for Unity text, no Chinese characters, no letters, no numbers, no logos, no people, no perspective, no 3D scene, game-ready 2D texture.",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260818/96f5a1f8-2697-443c-90f8-ff3d85eb449d/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTgvOTZmNWExZjgtMjY5Ny00NDNjLTkwZjgtZmYzZDg1ZWI0NDlkL2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcxMjMzMDV9fX1dfQ__&Signature=RXOZPnaiaWqON-ToIXRdgukSwbCR2GHEFf~l4kbapydtavAYy1Ugcos2w0wJCJCXSIxBCK9t9K5LpaK4aQyj5rQ27thq3L48FjzdFA8E1KHfSz07aiV60~PB3JY82Gf-i6vBOf-bI~mSe~zb-q~UFP0jQn~Nu4Z-S~kalQKOBpxz06sAYRSeI7DWMudce6nDz6yZWn1ICKgWKa970MJS3M6SLBQPvLR3q5ksAh1GdHdX4cNfqi6hUs3so9AEsiF16ctrtv~SALIvwZbJ7HeMKdM-aNIFbMz19NRBhNP5g8KOcViQMswl53NFlCW86ZmnMdyiLzU5aKcN-orIMj1JJQ__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-18T07:07:06.292950Z",
+  "completed_at": "2026-08-18T07:08:23.242516Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/DesignSources/GuandanUI/TripoGenerated/Modal/01_generated_image_url.png"
+  ]
+}

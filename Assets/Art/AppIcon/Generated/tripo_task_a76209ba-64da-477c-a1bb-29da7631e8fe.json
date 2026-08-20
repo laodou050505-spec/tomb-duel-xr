@@ -1,0 +1,19 @@
+{
+  "task_id": "a76209ba-64da-477c-a1bb-29da7631e8fe",
+  "status": "success",
+  "type": "image_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "Create a premium square mobile and PICO game icon from this reference. Recompose into a bold, centered three-quarter jade Chinese guardian beast as the dominant foreground silhouette, facing slightly toward the viewer. Place one smaller open bronze treasure chest behind and to the right, emitting controlled warm gold light. Keep only three to five large carved bronze stepping tiles at the bottom to suggest a treasure race, with no tiny clutter. Use a deep charcoal earthen tomb interior with restrained oxidized bronze architecture, jade-cyan highlights, and a small cinnabar accent. High-end stylized 3D game key art, collectible game icon quality, strong readable silhouette at 128 pixels, centered safe area, full-bleed square artwork. No text, no Chinese characters, no numbers, no playing cards, no people, no hands, no logo, no watermark, no UI, no border, no ring, no badge, no rounded white corners, no white or gray margin.",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260819/a76209ba-64da-477c-a1bb-29da7631e8fe/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTkvYTc2MjA5YmEtNjRkYS00NzdjLWExYmItMjlkYTc2MzFlOGZlL2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcyMDE3Mjh9fX1dfQ__&Signature=cVsgZHBdM391QrGaTC57zwhCCKlK7KYswwCmnqU4UXUfcFNgT6UG3OT0qGqnZOrgeRVtGc5brbmcbLuwkiM5eJmskQvMFv1YtwUrceFXxOvASgHlIzUbcGePtthcfBQscg6oBH6qi7g2lOYl82cW0z85csbjIQkew8Ugy572Q0gDl-NilC3QGPDmVk6LrI9n432VHWJt9WYWDeJw9QkbnVn15GaywjJooGcM5lAFVLx020~cEovmvS5hIqd6RmGBuLbteCicIrLb6bSPVnkBtr2376FvKlmko1InPMsQQdptRcbDh3VHDweGOAxkLUr~kfjv5Q57m2Zrv6SDlJjVuQ__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-19T04:55:06.782668Z",
+  "completed_at": "2026-08-19T04:55:26.621413Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/Assets/Art/AppIcon/Generated/01_generated_image_url.png"
+  ]
+}

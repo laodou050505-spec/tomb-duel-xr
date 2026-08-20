@@ -1,0 +1,19 @@
+{
+  "task_id": "3aca8c3e-2716-4c3b-abc4-980773378bd4",
+  "status": "success",
+  "type": "text_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "A compact horizontal nameplate UI frame for a Chinese tomb archaeology card game, dark lacquer and aged bronze, subtle jade cloud corners, small vermilion seal medallions, clean empty center for a character name and remaining cards, front-facing orthographic, designed for a 5:1 aspect ratio, no text, no numbers, no letters, no symbols, no watermark, crisp edges, no background scene",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260818/3aca8c3e-2716-4c3b-abc4-980773378bd4/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTgvM2FjYThjM2UtMjcxNi00YzNiLWFiYzQtOTgwNzczMzc4YmQ0L2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcxNDE1MDZ9fX1dfQ__&Signature=mGDyypDVMtqyV9zeOb7BeIC-4rmdRGPG~54XhsgQuoybXCjbNordfTRJ06ZzhncFQCG18R-36Noums5kbyzKpTrV7sM9oao4ra16PzO1OicyAEDz4Ezd6jfParUjT~vCha5Ty1zv4QIn88bSlNdJ7sBfoEHmDR2UmfKU0ERs63uFcpO-5FvY3bOoO7pkWErAEuqmimOkWlFUlaDIribPxkJV6oJScKC-hGUPsFZ-ExrOrdhB0kxY6Sb9diLzwU4HqGlCRiNvRa9nszVRCEodWcojyi7feiC52HGWyJYig~0lc~2EgohYzUoLTP3ymELoUMEUxmPYcdHlHH9oAPrV6w__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-18T12:11:30.407028Z",
+  "completed_at": "2026-08-18T12:11:46.258148Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/DesignSources/GuandanUI/TripoGenerated/SeatPlaque/01_generated_image_url.png"
+  ]
+}

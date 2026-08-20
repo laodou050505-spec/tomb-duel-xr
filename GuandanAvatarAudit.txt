@@ -1,0 +1,43 @@
+GO path=掼蛋夺宝 · 可编辑墓室/掼蛋夺宝 · 可编辑墓室/01_Environment · 可自由替换模型/_Generated_墓穴空间/Seats_四家座位与角色锚点
+  pos=(0.00, 0.00, 0.00) localPos=(0.00, 0.00, 0.00) rot=(0.00, 0.00, 0.00) localRot=(0.00, 0.00, 0.00) scale=(1.00, 1.00, 1.00) source=
+  renderers=4
+GO path=掼蛋夺宝 · 可编辑墓室/掼蛋夺宝 · 可编辑墓室/01_Environment · 可自由替换模型/_Generated_墓穴空间/Seats_四家座位与角色锚点/Seat_South_玩家/AvatarAnchor
+  pos=(0.00, 1.10, -3.69) localPos=(0.00, 1.10, -0.91) rot=(0.00, 180.00, 0.00) localRot=(0.00, 0.00, 0.00) scale=(0.90, 1.10, 0.90) source=
+  renderers=1
+GO path=掼蛋夺宝 · 可编辑墓室/掼蛋夺宝 · 可编辑墓室/01_Environment · 可自由替换模型/_Generated_墓穴空间/Seats_四家座位与角色锚点/Seat_North_队友/AvatarAnchor
+  pos=(0.00, 1.10, 3.35) localPos=(0.00, 1.10, -1.25) rot=(0.00, 0.00, 0.00) localRot=(0.00, 0.00, 0.00) scale=(0.90, 1.10, 0.90) source=
+  renderers=1
+GO path=掼蛋夺宝 · 可编辑墓室/掼蛋夺宝 · 可编辑墓室/01_Environment · 可自由替换模型/_Generated_墓穴空间/Seats_四家座位与角色锚点/Seat_East_对手/AvatarAnchor
+  pos=(4.60, 1.10, 0.00) localPos=(0.00, 1.10, 0.00) rot=(0.00, 270.00, 0.00) localRot=(0.00, 0.00, 0.00) scale=(0.90, 1.10, 0.90) source=
+  renderers=1
+GO path=掼蛋夺宝 · 可编辑墓室/掼蛋夺宝 · 可编辑墓室/01_Environment · 可自由替换模型/_Generated_墓穴空间/Seats_四家座位与角色锚点/Seat_West_对手/AvatarAnchor
+  pos=(-3.82, 1.10, 0.00) localPos=(0.00, 1.10, 0.78) rot=(0.00, 90.00, 0.00) localRot=(0.00, 0.00, 0.00) scale=(0.90, 1.10, 0.90) source=
+  renderers=1
+AUTHORED name=tripo_convert_d2277f49-c6a0-4ac8-a629-8761277c87e5 path=Assets/中国风墓穴考古/1/tripo_convert_d2277f49-c6a0-4ac8-a629-8761277c87e5.fbx pos=(3.52, 2.25, -0.18) rot=(0.00, 0.00, 0.00) scale=(4.30, 4.30, 4.30)
+AUTHORED name=tripo_convert_f9a97509-3e52-4a8b-ae86-ad722d7374c7 path=Assets/中国风墓穴考古/2/tripo_convert_f9a97509-3e52-4a8b-ae86-ad722d7374c7.fbx pos=(0.05, 0.04, 3.57) rot=(0.00, 270.00, 0.00) scale=(4.30, 4.30, 4.30)
+AUTHORED name=tripo_convert_38724699-3504-418c-a65d-36d61449aba5 path=Assets/中国风墓穴考古/4/tripo_convert_38724699-3504-418c-a65d-36d61449aba5.fbx pos=(-3.24, 2.13, 0.34) rot=(0.00, 180.00, 0.00) scale=(4.30, 4.30, 4.30)
+ASSET model=Assets/中国风墓穴考古/1/tripo_convert_d2277f49-c6a0-4ac8-a629-8761277c87e5.fbx avatar=False clips=4
+  assetClip=Armature|preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=__preview__preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=__preview__Armature|preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=preset:biped:sit len=7.167 wrap=Default legacy=False
+ASSET model=Assets/中国风墓穴考古/2/tripo_convert_f9a97509-3e52-4a8b-ae86-ad722d7374c7.fbx avatar=False clips=4
+  assetClip=Armature|preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=__preview__preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=__preview__Armature|preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=preset:biped:sit len=7.167 wrap=Default legacy=False
+ASSET model=Assets/中国风墓穴考古/3/tripo_convert_897a88cf-4206-44c7-8a26-67179e2c26e9.fbx avatar=False clips=4
+  assetClip=Armature|preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=__preview__preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=__preview__Armature|preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=preset:biped:sit len=7.167 wrap=Default legacy=False
+ASSET model=Assets/中国风墓穴考古/4/tripo_convert_38724699-3504-418c-a65d-36d61449aba5.fbx avatar=False clips=4
+  assetClip=Armature|preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=__preview__preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=__preview__Armature|preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=preset:biped:sit len=7.167 wrap=Default legacy=False
+ASSET model=Assets/中国风墓穴考古/5/tripo_convert_ec488428-2e0b-4ff8-bdb9-7819075a02c6.fbx avatar=False clips=4
+  assetClip=Armature|preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=__preview__preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=__preview__Armature|preset:biped:sit len=7.167 wrap=Default legacy=False
+  assetClip=preset:biped:sit len=7.167 wrap=Default legacy=False

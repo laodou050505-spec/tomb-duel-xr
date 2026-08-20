@@ -1,0 +1,19 @@
+{
+  "task_id": "3a25d17d-a36d-407b-9581-6d192b76b498",
+  "status": "success",
+  "type": "text_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "A single flat game UI asset only: a wide horizontal ornamental score rail frame for a Chinese tomb archaeology card game, black lacquer body, oxidized bronze edge, vermilion seal ornaments, jade green inlay, symmetrical rectangular frame, clean thick border, empty dark center safe area, no Chinese characters, no letters, no numbers, no logos, no people, no cards, no perspective, no 3D scene, game-ready 2D texture.",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260818/3a25d17d-a36d-407b-9581-6d192b76b498/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTgvM2EyNWQxN2QtYTM2ZC00MDdiLTk1ODEtNmQxOTJiNzZiNDk4L2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcxMjMyMjJ9fX1dfQ__&Signature=daLtGqMTWev~ZVmP0DO7IOqaTJcsBtCjSdXx5TtIUpnMOwlo45AiGkixoXywHiofAjE~xoAA-UPVYfkqaAhrx5Tn9irZfrKBEFWy9cCF523WAVLidZHJah37CeoI88iqvHw3Tmvd5OBIQQAeCT4IQ5MBB~~5nRWYR0SVJy4Q6iNuTSXKy8akTm47YyAVDKdwy72OJAgG5P2c1W2PGqxBmp7S3OSfy8qcTaHvJKqREdgO2Y5wbo~D1VwT0XoqVgN1g-SZT1HiQi2G8p5M4O-suU8pOlUrNjQr2hQ6sruEFiimBMQz~JZxKPFShnozDdwfh36f8uSTf~fEjbn6LDkd~w__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-18T07:06:42.346227Z",
+  "completed_at": "2026-08-18T07:06:58.660816Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/DesignSources/GuandanUI/TripoGenerated/ScoreRail/01_generated_image_url.png"
+  ]
+}

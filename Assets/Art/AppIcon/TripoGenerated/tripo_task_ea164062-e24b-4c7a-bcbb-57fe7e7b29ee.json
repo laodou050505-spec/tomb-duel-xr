@@ -1,0 +1,19 @@
+{
+  "task_id": "ea164062-e24b-4c7a-bcbb-57fe7e7b29ee",
+  "status": "success",
+  "type": "image_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "Make a clean premium square game icon from this reference. Preserve the large jade Chinese guardian beast, the open bronze treasure chest, the gold glow, and the ancient tomb floor. Remove every visible banner, Chinese character, glyph, number, inscription, and decorative text. Replace the side banners with plain dark earthen tomb columns and subtle bronze ornament with no symbols. Remove the white rounded-corner background and fill those corners with the same dark tomb interior so the artwork reaches all four edges. No border, no ring, no badge frame, no UI. Center the guardian and chest as a confident iconic silhouette, with a small amount of carved stepping-tile detail at the bottom. Sophisticated cinematic 3D game key art, refined jade-cyan, bronze, cinnabar and warm gold palette, no watermark.",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260819/ea164062-e24b-4c7a-bcbb-57fe7e7b29ee/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTkvZWExNjQwNjItZTI0Yi00YzdhLWJjYmItNTdmZTdlN2IyOWVlL2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcxOTk4MTF9fX1dfQ__&Signature=jvTWSspzx-q7s-1k5GjWvcR~qDC6WU0IUtT5eTV7~~hPsohhcOkvytKh-QrpQc2oAFPmx4F6rOBZGPT0rY17uPLidcpIQNjenJ~pj6C9csp3~Gyt3voRbJy8wo5R~u3z2fF49xJP-8mTeFSkJpdcg0Kd-ksw~B00o6XkI1wyYZC2OvJD6hL9O1tR725xiQ5yxG9oLkcudtTWQQg9OyR~YL85vBuQPbGCejG3x61Pu-VMCm14o-HUG4NtXY~EMW2XFDLO8vy~RpAjp9s3Vgf28LNXUPguZ3sji-aVL-hFIMZRuldvExphmfDkrPRhoEAvmC~9GqDYFVjaJy4uHeSErw__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-19T04:23:10.165501Z",
+  "completed_at": "2026-08-19T04:23:30.030607Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/Assets/Art/AppIcon/TripoGenerated/01_generated_image_url.png"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "task_id": "75dfe61c-e839-4bdd-bc62-7b5d5ae3dcff",
+  "status": "success",
+  "type": "text_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "A single premium game UI panel texture, front-facing orthographic, square canvas, one centered rectangular frame filling 90 percent of the image. Ancient Chinese tomb card-table aesthetic: matte black lacquer inner field, aged oxidized bronze frame, restrained cinnabar corner seals, tiny dark jade inlay accents, subtle carved cloud and thunder motifs only along the outer edge. Quiet empty center for readable Chinese text. Low specular, no glare, no gold shine. No text, no letters, no numbers, no icons, no cards, no characters, no scene, no perspective, no drop shadow outside the frame, symmetrical, production-ready nine-slice UI texture.",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260817/75dfe61c-e839-4bdd-bc62-7b5d5ae3dcff/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTcvNzVkZmU2MWMtZTgzOS00YmRkLWJjNjItN2I1ZDVhZTNkY2ZmL2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcwNjQwNTR9fX1dfQ__&Signature=YWrehjIrDIalxCX28jp8SIcvwhQt5HwrRJa2f1t9yJKKkMAjlrPf-Rd07ok9HECPOT5w9dVbzWIwqkZZX5xQV8f9Bm6LvnPzL11IBPgrjghqVjXsirIdaz7Fpbjv7X9FVAlXtaQG10pzui2YnvjXrlRVDxKhWi9XeUEXoTR-hLhxA2OGRgmCqNNgKI0rH4or~BnU2IW1afZjhOacGxmzm~mCJIyfSEowyKmHKDUR9i4VR4wOq2bi9IB~rvQJ~yML0zMQQmmhJJJfCn4QDLIMG3VHwv98D6MywRP1h2jMlNMAKYXuOb-0G4p8zQEycAz46KeHKPpo9MW5n3O0JSdduw__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-17T14:40:35.125365Z",
+  "completed_at": "2026-08-17T14:40:52.660921Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/Assets/Resources/GuandanUI/Generated/Panel/01_generated_image_url.png"
+  ]
+}

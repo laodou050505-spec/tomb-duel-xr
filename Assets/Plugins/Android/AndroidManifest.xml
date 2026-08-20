@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Explicit PICO VR classification. The SDK build hook normally emits these values,
+  but this project uses Unity 6000's Bee/Gradle path where that hook was skipped.
+  Keeping them in the source manifest prevents the runtime treating the app as a
+  freeform Android panel.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application android:requestLegacyExternalStorage="true">
+    <meta-data android:name="pvr.app.type" android:value="vr" />
+    <meta-data android:name="pxr.sdk.generation" android:value="4" />
+    <meta-data android:name="pxr.sdk.version_code" android:value="6000" />
+    <meta-data android:name="use.pxr.sdk" android:value="1" />
+    <meta-data android:name="pvr.sdk.version" android:value="Unity_XR_6.0.0" />
+    <meta-data android:name="rendering_mode" android:value="1" />
+    <meta-data android:name="display_rate" android:value="0" />
+    <meta-data android:name="controller" android:value="1" />
+  </application>
+</manifest>

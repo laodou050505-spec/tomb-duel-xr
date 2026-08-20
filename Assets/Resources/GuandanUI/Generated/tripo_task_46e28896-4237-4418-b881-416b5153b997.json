@@ -1,0 +1,19 @@
+{
+  "task_id": "46e28896-4237-4418-b881-416b5153b997",
+  "status": "success",
+  "type": "text_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "A wide horizontal bottom HUD panel for a Chinese tomb archaeology card game, dark lacquered wood and oxidized bronze frame, subtle jade cloud motifs, warm parchment center, clean empty center for cards, no text, no symbols, no buttons, no characters, front-facing orthographic game UI texture, crisp edges, game-ready 3:1 composition",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260818/46e28896-4237-4418-b881-416b5153b997/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTgvNDZlMjg4OTYtNDIzNy00NDE4LWI4ODEtNDE2YjUxNTNiOTk3L2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcxMzg1NDl9fX1dfQ__&Signature=ItYyc7tStS57ceL16PY3lufMlQ2HeIBprujv7wJ8JoTlshBxxA9ZKfGu1wPKGrC6AvixligRvpnaY6-oykHqGoevlhOqJ768QsNqU2R0mW4fTBGJCLyJJWs-H-bOhxAwWeuM9A1g3KOiGeZSbfgJeiIDOvjp0YM7JfU83HPlNN~X~9ABIQqGUhC4J8GuJ2BVV00s8bVg7mflNt2gn7FvwRapFe8KyvBo2k8QSKEGGiKjtBZtyUzn9L2ob2p4Q9gIqDP8OcazZj03HVmaiy26bqff1KQJealF70rpPl43fhdsX1SBl~QFIyjyS7fzyHcnWKeSIr3xM~WrZ2ymMj28Nw__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-18T11:22:09.663686Z",
+  "completed_at": "2026-08-18T11:22:25.890781Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/Assets/Resources/GuandanUI/Generated/01_generated_image_url.png"
+  ]
+}

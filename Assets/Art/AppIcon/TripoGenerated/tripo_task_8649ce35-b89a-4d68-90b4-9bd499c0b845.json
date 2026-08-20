@@ -1,0 +1,19 @@
+{
+  "task_id": "8649ce35-b89a-4d68-90b4-9bd499c0b845",
+  "status": "success",
+  "type": "image_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "Create a premium square mobile game icon using this image as the visual reference. Recompose the scene into a strong centered three-quarter view of a polished jade Chinese guardian beast in the foreground, facing slightly toward the viewer. Place a smaller open bronze treasure chest behind it as the warm gold focal light, with only a few carved ancient stepping tiles visible at the bottom to hint at a twelve-step treasure race. Use a dark earthen Chinese tomb interior with subtle bronze architecture and jade-cyan plus cinnabar accents. Sophisticated cinematic 3D game key art, clean silhouette, controlled contrast, rich material detail, elegant negative space, visually legible at small icon size. Keep the image square. No text, no Chinese characters, no numbers, no logo, no border, no ring, no badge frame, no white or gray background, no UI elements, no watermark.",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260819/8649ce35-b89a-4d68-90b4-9bd499c0b845/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTkvODY0OWNlMzUtYjg5YS00ZDY4LTkwYjQtOWJkNDk5YzBiODQ1L2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcxOTk2NzB9fX1dfQ__&Signature=mXsJU2Ehf7UzuOoGA53dCXhQG4XUkX6baX5J-PsriCnn6wd5a6Foc8kAGgPPZl-sbQc0pZyzrbR2S2YYgAq44nH1Y~roxyrf0YnF2C0xTIwb-K9ztLt~DYYVqAGs7CZgjNAvomwqTwvuDR0~Eiur8j7eOoZYR9NUhjV9W-twti1LBNw5ydQSsGs~8ZoPVD4n67zr1Xmk0jq~CACzpYyPU0LVY8zknBTpDrGcMVSc6NkUkvpk1VaIIhwN915k~LtQYGlhILYhFacK696j2iDXjirfD43ufziHjxWqfitJI8XoFaYIlcJHyYAPbTw8yfJ8EB1ZdF6PNzzYJq8aGodEjw__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-19T04:20:46.445609Z",
+  "completed_at": "2026-08-19T04:21:06.951005Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/Assets/Art/AppIcon/TripoGenerated/01_generated_image_url.png"
+  ]
+}

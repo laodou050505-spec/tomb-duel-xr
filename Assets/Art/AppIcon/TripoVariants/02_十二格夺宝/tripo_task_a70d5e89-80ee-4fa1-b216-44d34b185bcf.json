@@ -1,0 +1,19 @@
+{
+  "task_id": "a70d5e89-80ee-4fa1-b216-44d34b185bcf",
+  "status": "success",
+  "type": "text_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "Use case: stylized-concept. Asset type: premium square mobile and PICO game icon, 1024x1024. Primary request: a jade-green game token shaped like a small carved tomb guardian moving across a short row of ancient bronze floor tiles toward a glowing open relic chest, visually expressing a twelve-step treasure race. Style/medium: high-end stylized 3D game icon, Chinese archaeology fantasy, refined collectible game art. Composition/framing: one dominant jade token in the foreground, glowing chest behind it, simplified stepped path receding into a dark tomb gate, centered diagonal composition, full-bleed square artwork, no rounded frame, no white margin, readable at 512 pixels. Lighting/mood: vermilion and jade team color accents balanced by warm gold treasure light, deep earthen shadows, cinematic volumetric rays. Materials/textures: oxidized bronze, dark jade, carved stone tiles, subtle dust motes and relic sparks. Constraints: no text, no Chinese characters, no numbers, no playing card labels, no people, no hands, no UI, no watermark, no excessive particles, no white background.",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260819/a70d5e89-80ee-4fa1-b216-44d34b185bcf/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTkvYTcwZDVlODktODBlZS00ZmExLWIyMTYtNDRkMzRiMTg1YmNmL2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcxOTc1NTJ9fX1dfQ__&Signature=gv6YjOKp6~ic5CXr6OF9QxQBxvlfVJonKJr7BbLKtasrwMgi-XjHrx6KUaMvErkuEUJIEDHgI13mfeNzWqDfXNFucOjW8hza7AgpbfelFo6YhKeQInVpaG9I8x2c8cxpPtSxDMX8eJ9PDi~COGf3XFrTFmFKG-mXw8FzM6nqpBQNcw~yI3EjDylnteAk5pf3bp2K4nSeu4RCHCnSZYhOcSdBaR9PfJOkGQRj77aGL5i3cWnyKZuOV2h94jp9TYU7aHs4ptyR68rLzfJmSnjvm4tQ-WH7aNNo-39c9JTb2b7jsIIGSOddah7G60~7m-rkgmDpi~IFLtKMWaBWzUYRoA__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-19T03:45:31.312606Z",
+  "completed_at": "2026-08-19T03:45:48.727135Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/Assets/Art/AppIcon/TripoVariants/02_十二格夺宝/01_generated_image_url.png"
+  ]
+}

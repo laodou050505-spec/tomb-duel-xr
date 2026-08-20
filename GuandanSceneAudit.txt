@@ -1,0 +1,7 @@
+[GuandanAudit] Scene= roots=0
+[GuandanAudit][Asset] Assets/中国风墓穴考古/1/tripo_convert_d2277f49-c6a0-4ac8-a629-8761277c87e5.fbx model=tripo_convert_d2277f49-c6a0-4ac8-a629-8761277c87e5 clips=Armature|preset:biped:sit,preset:biped:sit,__preview__preset:biped:sit,__preview__Armature|preset:biped:sit
+[GuandanAudit][Asset] Assets/中国风墓穴考古/2/tripo_convert_f9a97509-3e52-4a8b-ae86-ad722d7374c7.fbx model=tripo_convert_f9a97509-3e52-4a8b-ae86-ad722d7374c7 clips=Armature|preset:biped:sit,preset:biped:sit,__preview__preset:biped:sit,__preview__Armature|preset:biped:sit
+[GuandanAudit][Asset] Assets/中国风墓穴考古/3/tripo_convert_897a88cf-4206-44c7-8a26-67179e2c26e9.fbx model=tripo_convert_897a88cf-4206-44c7-8a26-67179e2c26e9 clips=Armature|preset:biped:sit,preset:biped:sit,__preview__preset:biped:sit,__preview__Armature|preset:biped:sit
+[GuandanAudit][Asset] Assets/中国风墓穴考古/4/tripo_convert_38724699-3504-418c-a65d-36d61449aba5.fbx model=tripo_convert_38724699-3504-418c-a65d-36d61449aba5 clips=Armature|preset:biped:sit,preset:biped:sit,__preview__preset:biped:sit,__preview__Armature|preset:biped:sit
+[GuandanAudit][Asset] Assets/中国风墓穴考古/5/tripo_convert_ec488428-2e0b-4ff8-bdb9-7819075a02c6.fbx model=tripo_convert_ec488428-2e0b-4ff8-bdb9-7819075a02c6 clips=Armature|preset:biped:sit,preset:biped:sit,__preview__preset:biped:sit,__preview__Armature|preset:biped:sit
+[GuandanAudit][Asset] Assets/中国风墓穴考古/f4/tripo_convert_a27fe845-2025-4215-b2f8-17a493eac867.fbx model=tripo_convert_a27fe845-2025-4215-b2f8-17a493eac867 clips=

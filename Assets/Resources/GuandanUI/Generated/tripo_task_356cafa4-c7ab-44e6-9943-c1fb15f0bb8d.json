@@ -1,0 +1,19 @@
+{
+  "task_id": "356cafa4-c7ab-44e6-9943-c1fb15f0bb8d",
+  "status": "success",
+  "type": "text_to_image",
+  "progress": 100,
+  "input": {
+    "prompt": "A single vertical playing card face texture for a Chinese tomb archaeology card game UI, centered portrait rectangle, warm aged rice paper surface, subtle black lacquer border, thin oxidized bronze inner line, restrained vermilion seal accent in the corners, elegant carved cloud motifs, premium realistic game interface asset, perfectly front-facing, clean symmetrical layout, no text, no numbers, no letters, no suits, no symbols, no watermark, no extra objects, no hands, isolated card face, sharp edges, high contrast readable at small size",
+    "model_version": "banana"
+  },
+  "output": {
+    "generated_image_url": "https://tripo-data.rg1.data.tripo3d.com/tcli_c6fae067c9334bd9af3d07029c0e7b00/20260818/356cafa4-c7ab-44e6-9943-c1fb15f0bb8d/generated_image.png?Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly90cmlwby1kYXRhLnJnMS5kYXRhLnRyaXBvM2QuY29tL3RjbGlfYzZmYWUwNjdjOTMzNGJkOWFmM2QwNzAyOWMwZTdiMDAvMjAyNjA4MTgvMzU2Y2FmYTQtYzdhYi00NGU2LTk5NDMtYzFmYjE1ZjBiYjhkL2dlbmVyYXRlZF9pbWFnZS5wbmciLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3ODcxMzg5ODB9fX1dfQ__&Signature=DGMXUseqaqK4NMUGZktTg7UwQmUn-zGj~Y~x4k9ltp6mMhZi3eoc6MqWS8Ux1sKQpWxo1u0RQX0L6Ae-QFWLC-OVuUfrYhPPMFtzopXnuf9JRg2CXavYb4xnJcJwpozA~2GuMDHAWGl8tKHLzuKtypmBjZJboauu5jel4skqfE5MJhohpYDBRFDZ9w~xp1JncdKCMbFl9DxSZhBOFiZ2Cr-i~c1ktIj5S013k54FohTW4OXE1QoMNjrjQnKN9ugaotHRCmSAgiAgDXpC26fEIMW0SkhdlJ8hJsaSYm1nZdJD0TLGH1ywU44Pv6oADa0mVmxkhhtRWm8mvoRw6A43mw__&Key-Pair-Id=K1676C64NMVM2J"
+  },
+  "created_at": "2026-08-18T11:29:20.469131Z",
+  "completed_at": "2026-08-18T11:29:37.626675Z",
+  "credits_consumed": 5.0,
+  "downloaded_files": [
+    "/Users/ld/Documents/Codex/2026-08-16/jie/outputs/掼蛋/Assets/Resources/GuandanUI/Generated/01_generated_image_url.png"
+  ]
+}
