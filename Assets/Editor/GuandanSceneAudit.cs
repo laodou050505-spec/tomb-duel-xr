@@ -162,7 +162,7 @@ namespace Guandan.EditorTools
             ValidateTreasurePieceBases(treasurePresenter);
             cameraRig.RecenterDesktop();
             var cameraStart = headCamera.transform.position;
-            Require(Vector3.Distance(cameraStart, new Vector3(0f, 3.12f, -4.65f)) < 0.03f,
+            Require(Vector3.Distance(cameraStart, new Vector3(0f, 3.12f, -5.17f)) < 0.03f,
                 $"初始相机没有回到参考图机位：{cameraStart}");
             var yawField = typeof(Guandan.XR.GuandanXRBootstrap).GetField("desktopYaw", BindingFlags.Instance | BindingFlags.NonPublic);
             var applyCamera = typeof(Guandan.XR.GuandanXRBootstrap).GetMethod("ApplyDesktopCamera", BindingFlags.Instance | BindingFlags.NonPublic);

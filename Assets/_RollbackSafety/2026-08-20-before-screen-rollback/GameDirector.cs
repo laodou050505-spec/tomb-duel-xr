@@ -16,7 +16,7 @@ namespace Guandan.Game
         [SerializeField] private int debugSeed = 20260817;
         [SerializeField] private bool autoStart = true;
         [SerializeField] private bool openingLottery = true;
-        [Tooltip("使用上一版固定在玩家视野前的完整牌局界面。")]
+        [Tooltip("仅用于旧版桌面原型。PICO 与正式桌面玩法始终使用墓室内的世界空间牌、竹签与按钮。")]
         [SerializeField] private bool useScreenUi;
         [Tooltip("关闭后不生成默认人物和 f4 箱子，保留座位锚点供你在 Scene 中自行摆放。")]
         [SerializeField] private bool spawnRuntimeAvatars;
@@ -307,12 +307,11 @@ namespace Guandan.Game
             lotteryProfiles = CreateLotteryProfiles(NextSeed());
             if (useScreenUi)
             {
-                var camera = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
-                var screenRoot = new GameObject("ScreenGameUi");
-                screenRoot.transform.SetParent(transform, false);
-                screenUi = screenRoot.AddComponent<ScreenGameUi>();
-                screenUi.Initialize(this, camera);
-                DisableLegacyWorldUi();
+                // Intentionally do not instantiate the retired ScreenGameUi. The main
+                // loop must remain physically present in the tomb even if an older Scene
+                // accidentally retains this serialized flag.
+                Debug.LogWarning("[Guandan] 已忽略旧版 useScreenUi；地宫争锋仅支持世界空间玩法。");
+                useScreenUi = false;
             }
 
             try
@@ -337,6 +336,9 @@ namespace Guandan.Game
 
             if (autoStart)
             {
+                // This project no longer supports a camera-relative main game surface.
+                // The three physical lots on the tomb table are always the entry point.
+                useScreenUi = false;
                 lotteryChosen = !openingLottery;
                 if (lotteryChosen) StartMatchWithPresentation();
                 else
@@ -577,8 +579,8 @@ namespace Guandan.Game
         {
             var camera = Camera.main;
             if (camera == null) return;
-            FindFirstObjectByType<Guandan.XR.GuandanXRBootstrap>()?.RecenterDesktop();
-            ShowMessage("视角已回到牌桌机位");
+            FindFirstObjectByType<Guandan.XR.GuandanXRBootstrap>()?.RecenterToDesignStart();
+            ShowMessage("视角已回到设计的南家桌边起点");
         }
 
         private IEnumerator RunAiTurn(PlayerSeat seat)
@@ -903,7 +905,6 @@ namespace Guandan.Game
         {
             foreach (var view in handViews) Destroy(view.gameObject);
             handViews.Clear();
-            if (useScreenUi) return;
             if (playerHandAnchor == null) return;
             var hand = match.GetHand(PlayerSeat.South);
             var firstRow = Mathf.Min(14, hand.Count);
@@ -927,7 +928,6 @@ namespace Guandan.Game
         {
             foreach (var view in tableViews) Destroy(view.gameObject);
             tableViews.Clear();
-            if (useScreenUi) return;
             if (tablePlayAnchor == null || match.CurrentPlay == null) return;
             var cards = match.CurrentPlay.Cards;
             for (var i = 0; i < cards.Count; i++)
@@ -1190,17 +1190,6 @@ namespace Guandan.Game
         private void UpdateButtonAvailability()
         {
             if (match == null) return;
-            if (useScreenUi)
-            {
-                playButton?.SetAvailable(false);
-                passButton?.SetAvailable(false);
-                hintButton?.SetAvailable(false);
-                enterTreasureButton?.SetAvailable(false);
-                steadyButton?.SetAvailable(false);
-                riskyButton?.SetAvailable(false);
-                continueButton?.SetAvailable(false);
-                return;
-            }
             if (!lotteryChosen || presentationLocked)
             {
                 playButton?.SetAvailable(false);
@@ -1254,7 +1243,6 @@ namespace Guandan.Game
         private void DisableLegacyWorldUi()
         {
             if (uiAnchor != null) uiAnchor.gameObject.SetActive(false);
-            if (worldUiRoot != null) worldUiRoot.gameObject.SetActive(false);
             foreach (var text in seatLabels.Values)
             {
                 if (text != null) text.gameObject.SetActive(false);

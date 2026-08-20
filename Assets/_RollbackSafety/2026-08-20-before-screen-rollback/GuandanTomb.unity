@@ -19846,7 +19846,7 @@ MonoBehaviour:
   debugSeed: 20260817
   autoStart: 1
   openingLottery: 1
-  useScreenUi: 1
+  useScreenUi: 0
   spawnRuntimeAvatars: 0
   playerHandAnchor: {fileID: 1703488025}
   tablePlayAnchor: {fileID: 1442735104}
@@ -24234,6 +24234,7 @@ GameObject:
   - component: {fileID: 1899173134}
   - component: {fileID: 1899173133}
   - component: {fileID: 1899173132}
+  - component: {fileID: 1899173135}
   m_Layer: 0
   m_Name: "XR Rig \xB7 Floor Tracking"
   m_TagString: Untagged
@@ -24295,6 +24296,12 @@ MonoBehaviour:
   desktopWalkSpeed: 0.72
   maxDesktopPanRadius: 0.75
   maxXrOffsetRadius: 1.25
+  designPlayerStart: {fileID: 1899173135}
+  designEyePosition: {x: 0, y: 3.12, z: -4.65}
+  designGameplayFocus: {x: 0, y: 2.14, z: 0}
+  designEyeHeight: 1.6
+  treasureEyePosition: {x: 0, y: 3, z: 18.25}
+  treasureGameplayFocus: {x: 0, y: 0.9, z: 25.6}
 --- !u!114 &1899173134
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -24343,6 +24350,23 @@ MonoBehaviour:
   dstColor: 1
   srcAlpha: 1
   dstAlpha: 1
+--- !u!114 &1899173135
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1899173130}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 17467345bd6b740178dae5b80d9eb5a6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Guandan.XR.DesignPlayerStart
+  eyePosition: {x: 0, y: 3.12, z: -4.65}
+  gameplayFocus: {x: 0, y: 2.14, z: 0}
+  eyeHeight: 1.6
+  treasureEyePosition: {x: 0, y: 3, z: 18.25}
+  treasureGameplayFocus: {x: 0, y: 0.9, z: 25.6}
 --- !u!1001 &1921311309
 PrefabInstance:
   m_ObjectHideFlags: 0

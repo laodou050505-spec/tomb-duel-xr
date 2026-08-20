@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using ByteDance.PICO.XR;
 using Guandan.Game;
 using Guandan.Scene;
@@ -165,13 +164,7 @@ namespace Guandan.Editor
             if (!EditorBuildSettings.scenes.Any(item => item.enabled && item.path == TitleScenePath)) failures.Add("启动场景未加入 Build Settings");
             if (!EditorBuildSettings.scenes.Any(item => item.enabled && item.path == ScenePath)) failures.Add("场景未加入 Build Settings");
             var sceneText = File.Exists(ScenePath) ? File.ReadAllText(ScenePath) : string.Empty;
-            if (sceneText.Contains("useScreenUi: 1", StringComparison.Ordinal)) failures.Add("场景仍启用了相机前 ScreenGameUi");
-            if (sceneText.Contains("ScreenGameUi", StringComparison.Ordinal)) failures.Add("场景仍序列化了旧版 ScreenGameUi");
-            if (!sceneText.Contains("WorldUI", StringComparison.Ordinal)
-                || !sceneText.Contains("HandAnchor_South", StringComparison.Ordinal)
-                || !sceneText.Contains("TablePlayAnchor", StringComparison.Ordinal)
-                || !sceneText.Contains("TreasureTrackAnchor", StringComparison.Ordinal))
-                failures.Add("场景缺少桌面实体交互锚点");
+            if (!sceneText.Contains("useScreenUi: 1", StringComparison.Ordinal)) failures.Add("场景未启用相机前完整牌局 UI");
             var titleText = File.Exists(TitleScenePath) ? File.ReadAllText(TitleScenePath) : string.Empty;
             if (titleText.Contains("GameDirector", StringComparison.Ordinal)
                 || titleText.Contains("TombRoomBuilder", StringComparison.Ordinal)
@@ -201,65 +194,11 @@ namespace Guandan.Editor
 
             EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
             var bootstrap = UnityEngine.Object.FindFirstObjectByType<GuandanXRBootstrap>();
-            if (bootstrap == null) failures.Add("场景缺少统一桌面/XR 起点的 GuandanXRBootstrap");
-            else
-            {
-                if (!bootstrap.UsesSceneDesignPlayerStart) failures.Add("场景缺少权威 DesignPlayerStart");
-                if (bootstrap.DesignEyePosition.y <= bootstrap.DesignGameplayFocus.y) failures.Add("设计玩家起点眼高未高于桌面地标");
-            }
+            if (bootstrap == null) failures.Add("场景缺少桌面/XR 相机控制器 GuandanXRBootstrap");
             var director = UnityEngine.Object.FindFirstObjectByType<GameDirector>();
             if (director == null) failures.Add("场景缺少地宫牌局的 GameDirector");
-            var interactables = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                .OfType<IWorldInteractable>()
-                .ToArray();
-            if (interactables.OfType<WorldLotteryLot>().Count() < 3) failures.Add("场景缺少三支可射线选择的竹签");
-            if (interactables.OfType<WorldButton>().Count() < 7) failures.Add("场景缺少墓室内的主要操作按钮");
-            if (UnityEngine.Object.FindFirstObjectByType<DesktopPointer>() == null) failures.Add("场景缺少桌面世界射线回退交互");
             if (failures.Count > 0) throw new BuildFailedException("掼蛋项目验证失败：" + string.Join("；", failures));
-            Debug.Log("[Guandan] 项目验证通过：世界空间主玩法、统一设计起点、PICO Loader、Multiview、ARM64、IL2CPP 与最低 API 均已配置。\n");
-        }
-
-        [MenuItem("掼蛋/输出 XR 世界空间验收清单")]
-        public static void WriteWorldSpaceEvidence()
-        {
-            EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
-            var bootstrap = UnityEngine.Object.FindFirstObjectByType<GuandanXRBootstrap>();
-            var director = UnityEngine.Object.FindFirstObjectByType<GameDirector>();
-            if (bootstrap == null || director == null)
-                throw new BuildFailedException("无法输出 XR 验收清单：场景缺少 XR 起点或牌局控制器");
-
-            var report = new StringBuilder();
-            report.AppendLine("# 地宫争锋：掼蛋夺宝 — XR 世界空间验收清单");
-            report.AppendLine();
-            report.AppendLine("## 权威设计玩家起点");
-            report.AppendLine($"- 眼睛世界坐标：{Format(bootstrap.DesignEyePosition)}");
-            report.AppendLine($"- 面向的首个玩法地标（牌桌中央）：{Format(bootstrap.DesignGameplayFocus)}");
-            report.AppendLine($"- 设计眼高：{bootstrap.DesignEyeHeight:F2} m");
-            report.AppendLine("- 桌面 Game View：GuandanXRBootstrap.RecenterDesktop() 使用同一眼睛坐标与地标计算朝向。");
-            report.AppendLine("- PICO 启动 / 右手 Menu 重置 / 键盘 R：GuandanXRBootstrap.RecenterToDesignStart() 使用同一坐标，并补偿已追踪的头显局部姿态。");
-            report.AppendLine();
-            report.AppendLine("## 世界空间核心物体与主要操作");
-            AppendObject(report, "南家双排手牌锚点（运行时生成 14+13 张独立牌）", FindNamedTransform("HandAnchor_South"));
-            AppendObject(report, "桌面出牌区", FindNamedTransform("TablePlayAnchor"));
-            AppendObject(report, "桌侧行动台", FindNamedTransform("UIAnchor"));
-            AppendObject(report, "夺宝入口与两条实体路线", FindNamedTransform("TreasureTrackAnchor"));
-            foreach (var lot in UnityEngine.Object.FindObjectsByType<WorldLotteryLot>(FindObjectsInactive.Include, FindObjectsSortMode.None).OrderBy(item => item.name))
-                AppendObject(report, "可选竹签", lot.transform);
-            foreach (var button in UnityEngine.Object.FindObjectsByType<WorldButton>(FindObjectsInactive.Include, FindObjectsSortMode.None).OrderBy(item => item.name))
-                AppendObject(report, $"世界按钮 · {button.Action}", button.transform);
-            report.AppendLine();
-            report.AppendLine("## 交互通道");
-            report.AppendLine("- PICO 左 / 右控制器：可见射线 + Trigger 物理 Raycast（8m）命中 IWorldInteractable；命中后触觉反馈。");
-            report.AppendLine("- 桌面回退：DesktopPointer 由主相机发射物理射线，点击同一批 Collider / IWorldInteractable。");
-            report.AppendLine("- 鲜花 / 番茄：控制器 Trigger 或鼠标拖动，在实体人物碰撞体上释放。玩家可在真实空间绕桌靠近、观察与操作。");
-            report.AppendLine();
-            report.AppendLine("## HUD 边界");
-            report.AppendLine("- 主游戏不创建 ScreenGameUi、Canvas 或相机子级牌局界面。仅夺宝旗帜有固定在场景模型上的世界空间比分牌。");
-
-            Directory.CreateDirectory("Logs");
-            const string output = "Logs/XRWorldSpaceEvidence.md";
-            File.WriteAllText(output, report.ToString(), Encoding.UTF8);
-            Debug.Log($"[Guandan] XR 世界空间验收清单已输出：{output}\n{report}");
+            Debug.Log("[Guandan] 项目验证通过：相机前完整牌局 UI、PICO Loader、Multiview、ARM64、IL2CPP 与最低 API 均已配置。\n");
         }
 
         public static void SetupAndVerify()
@@ -291,22 +230,9 @@ namespace Guandan.Editor
             BuildPicoApkAtPath("Builds/Android/掼蛋-PICO.apk");
         }
 
-        [MenuItem("掼蛋/构建/PICO 原生 XR 世界空间 APK")]
-        public static void BuildPicoNativeWorldSpaceApk()
-        {
-            BuildPicoApkAtPath("Builds/Android/Guandan-PICO-NativeXRWorldSpace.apk");
-        }
-
-        /// <summary>Builds a separately named Android package for local XR UI verification.</summary>
-        public static void BuildPicoUiComfortApk()
-        {
-            BuildPicoApkAtPath("Builds/Android/掼蛋-PICO-UI舒适视区.apk");
-        }
-
         private static void BuildPicoApkAtPath(string outputPath)
         {
             EnsureTitleSceneExists();
-            EnsureWorldSpaceRigAndAnchors();
             ConfigurePicoProject();
             VerifyProject();
             if (!EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android))
@@ -330,29 +256,6 @@ namespace Guandan.Editor
             else EnsureBuildScenes();
         }
 
-        /// <summary>
-        /// Updates only the authored XR rig metadata. It never rebuilds the user's tomb,
-        /// table, props, camera composition, or manually placed models.
-        /// </summary>
-        [MenuItem("掼蛋/同步 XR 世界空间起点")]
-        public static void EnsureWorldSpaceRigAndAnchors()
-        {
-            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
-            var bootstrap = UnityEngine.Object.FindFirstObjectByType<GuandanXRBootstrap>();
-            if (bootstrap == null) throw new BuildFailedException("场景中缺少 GuandanXRBootstrap，无法同步 XR 起点");
-            bootstrap.BuildSceneRigForEditor();
-            var director = UnityEngine.Object.FindFirstObjectByType<GameDirector>();
-            if (director == null) throw new BuildFailedException("场景中缺少 GameDirector，无法同步世界交互锚点");
-            // Persist the interactive table objects, so the scene itself—not a camera
-            // canvas or an Awake-only side effect—documents the playable XR surface.
-            director.BuildSceneAnchorsForEditor();
-            EditorUtility.SetDirty(bootstrap.gameObject);
-            EditorUtility.SetDirty(director.gameObject);
-            EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene);
-            Debug.Log("[Guandan] 已同步权威 DesignPlayerStart；未移动墓穴、牌桌或用户模型。\n");
-        }
-
         private static void EnsureBuildScenes()
         {
             EditorBuildSettings.scenes = new[]
@@ -361,32 +264,6 @@ namespace Guandan.Editor
                 new EditorBuildSettingsScene(ScenePath, true),
             };
         }
-
-        private static Transform FindNamedTransform(string objectName)
-        {
-            return UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                .FirstOrDefault(item => item.name == objectName);
-        }
-
-        private static void AppendObject(StringBuilder report, string label, Transform target)
-        {
-            if (target == null)
-            {
-                report.AppendLine($"- {label}：缺失");
-                return;
-            }
-            report.AppendLine($"- {label}：世界坐标 {Format(target.position)}；父级 {TransformPath(target.parent)}");
-        }
-
-        private static string TransformPath(Transform target)
-        {
-            if (target == null) return "<场景根>";
-            var segments = new Stack<string>();
-            for (var current = target; current != null; current = current.parent) segments.Push(current.name);
-            return string.Join(" / ", segments);
-        }
-
-        private static string Format(Vector3 value) => $"({value.x:F2}, {value.y:F2}, {value.z:F2})";
 
         private static void CreateSocialProp(Transform parent, string name, SocialPropType type, Vector3 position, Color color)
         {

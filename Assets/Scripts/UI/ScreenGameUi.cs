@@ -18,11 +18,10 @@ namespace Guandan.UI
     {
         private const float CanvasWidth = 1920f;
         private const float CanvasHeight = 1080f;
-        // Headset-safe presentation area: the desktop Game view retains the same 16:9
-        // composition, while the panel occupies a comfortable central portion of the
-        // PICO view instead of filling the user's vertical field of view.
-        private static readonly Vector3 HeadsetUiOffset = new(0f, -0.04f, 2.35f);
-        private const float HeadsetUiScale = 0.00128f;
+        // Keep the camera-front composition used by the original desktop build.
+        // The panel is still parented to the head camera, so it remains available in XR.
+        private static readonly Vector3 HeadsetUiOffset = new(0f, 0.08f, 1.70f);
+        private const float HeadsetUiScale = 0.00164f;
 
         private GameDirector director;
         private Canvas canvas;
@@ -296,10 +295,8 @@ namespace Guandan.UI
             if (go.GetComponent<GraphicRaycaster>() == null) go.AddComponent<GraphicRaycaster>();
             var rect = go.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(CanvasWidth, CanvasHeight);
-            // Keep the 14 + 13 card rack inside the lower field of view. The canvas is
-            // parented to the head camera, so this remains a true player-facing HUD in
-            // desktop mode and inside a PICO headset. At 2.35 m it spans about 55° by
-            // 33°, matching the desktop composition without overwhelming the headset.
+            // This canvas is attached to the player camera for the original full-board
+            // presentation: score rail, 14 + 13 cards, action buttons and profile card.
             go.transform.localPosition = HeadsetUiOffset;
             go.transform.localRotation = Quaternion.identity;
             go.transform.localScale = Vector3.one * HeadsetUiScale;
