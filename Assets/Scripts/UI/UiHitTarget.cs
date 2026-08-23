@@ -20,6 +20,7 @@ namespace Guandan.UI
         [SerializeField] private int index;
         [SerializeField] private string value;
         private ScreenGameUi owner;
+        private float lastDispatchTime = -10f;
 
         public void Configure(ScreenGameUi screen, UiHitKind hitKind, int hitIndex = -1, string hitValue = null)
         {
@@ -39,12 +40,19 @@ namespace Guandan.UI
 
         public void Interact(PointerSource source)
         {
-            if (source == PointerSource.Desktop && GetComponent<Button>() != null) return;
+            var button = GetComponent<Button>();
+            if (button != null && !button.interactable) return;
             InvokeTarget();
         }
 
         private void InvokeTarget()
         {
+            // A PICO hand pinch can surface both as its native aim-ray event and as an
+            // Android pointer event.  They refer to one real-world pinch, so accepting both
+            // would make a card toggle twice and visually look as if the click did nothing.
+            if (Time.unscaledTime - lastDispatchTime < 0.16f) return;
+            lastDispatchTime = Time.unscaledTime;
+            Debug.Log($"[Guandan] 平面 UI 点击：{kind} / {index} / {value}");
             owner?.HandleTarget(kind, index, value);
         }
 

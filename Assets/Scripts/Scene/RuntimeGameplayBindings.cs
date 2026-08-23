@@ -44,6 +44,11 @@ namespace Guandan.Scene
 
         public bool IsInitialized => initialized;
 
+        public Transform GetAvatarTransform(PlayerSeat seat)
+        {
+            return avatars.TryGetValue(seat, out var avatar) ? avatar : null;
+        }
+
         public void Initialize(GameDirector owner, Transform[] seatAnchors, int avatarSeed = 0, bool spawnAvatars = false)
         {
             if (initialized) return;

@@ -6,6 +6,7 @@
   freeform Android panel.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="com.picovr.permission.HAND_TRACKING" />
   <application android:requestLegacyExternalStorage="true">
     <meta-data android:name="pvr.app.type" android:value="vr" />
     <meta-data android:name="pxr.sdk.generation" android:value="4" />
@@ -15,5 +16,25 @@
     <meta-data android:name="rendering_mode" android:value="1" />
     <meta-data android:name="display_rate" android:value="0" />
     <meta-data android:name="controller" android:value="1" />
+    <meta-data android:name="handtracking" android:value="1" />
+    <!-- Declaring the launcher here is required when a custom manifest is
+         present.  Otherwise Unity 6000's generated launcher entry is replaced
+         by XR Management's bare activity declaration, which PICO recognizes as
+         VR but Android cannot start from the launcher. -->
+    <activity
+        android:name="com.unity3d.player.UnityPlayerActivity"
+        android:enabled="true"
+        android:exported="true"
+        android:launchMode="singleTask"
+        android:screenOrientation="landscape"
+        android:configChanges="fontScale|keyboard|keyboardHidden|locale|mnc|mcc|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|touchscreen"
+        android:hardwareAccelerated="false"
+        android:resizeableActivity="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+      <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+    </activity>
   </application>
 </manifest>

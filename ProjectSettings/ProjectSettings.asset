@@ -687,8 +687,8 @@ PlayerSettings:
   webWasm2023: 1
   webEnableSubmoduleStrippingCompatibility: 0
   scriptingDefineSymbols:
-    Android: ENABLE_PICO_XR_SDK;PICO_SPATIALIZER
-    Standalone: ENABLE_PICO_XR_SDK;PICO_SPATIALIZER
+    Android: ENABLE_PICO_XR_SDK;PICO_SPATIALIZER;XR_HANDS
+    Standalone: ENABLE_PICO_XR_SDK;PICO_SPATIALIZER;XR_HANDS
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

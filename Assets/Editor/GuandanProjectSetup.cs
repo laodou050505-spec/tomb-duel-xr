@@ -97,7 +97,7 @@ namespace Guandan.Editor
         public static void ConfigurePicoProject()
         {
             PlayerSettings.companyName = "GuandanTomb";
-            PlayerSettings.productName = "掼蛋";
+            PlayerSettings.productName = "地宫争锋";
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.guandan.tombxr");
             PlayerSettings.defaultScreenWidth = 1600;
             PlayerSettings.defaultScreenHeight = 1000;
@@ -122,6 +122,7 @@ namespace Guandan.Editor
             PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.OpenGLES3, GraphicsDeviceType.Vulkan });
             EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
             SetInputHandler(1);
+            ApplyPicoIcon.Run();
 
             var pxrSettings = AssetDatabase.LoadAssetAtPath<PXR_Settings>("Assets/XR/Settings/PXR_Settings.asset");
             if (pxrSettings != null)
@@ -151,7 +152,7 @@ namespace Guandan.Editor
             EditorUtility.SetDirty(settingsStore);
 
             AssetDatabase.SaveAssets();
-            Debug.Log("[Guandan] PICO 配置完成：Android / ARM64 / IL2CPP / Activity / Multiview / PXR Loader。\n");
+            Debug.Log("[Guandan] PICO 配置完成：Android / ARM64 / IL2CPP / Activity / Multiview / PXR Loader / 应用图标。\n");
         }
 
         [MenuItem("掼蛋/验证项目")]
@@ -227,14 +228,22 @@ namespace Guandan.Editor
         [MenuItem("掼蛋/构建/PICO Android APK")]
         public static void BuildPicoApk()
         {
-            BuildPicoApkAtPath("Builds/Android/掼蛋-PICO.apk");
+            // There is only one supported PICO deliverable: enter the tomb directly with
+            // the camera-front flat-card UI.  Do not emit a second, ambiguously named APK
+            // that can be mistaken for the retired tabletop-card build.
+            BuildPicoNativeScreenUiApk();
         }
 
-        private static void BuildPicoApkAtPath(string outputPath)
+        [MenuItem("掼蛋/构建/PICO 原生VR平面牌UI APK")]
+        public static void BuildPicoNativeScreenUiApk()
         {
-            EnsureTitleSceneExists();
+            BuildPicoFlatUiApkAtPath("Builds/Android/地宫争锋-PICO-VR平面牌UI.apk");
+        }
+
+        private static void BuildPicoFlatUiApkAtPath(string outputPath)
+        {
             ConfigurePicoProject();
-            VerifyProject();
+            VerifyPicoFlatUiBuild();
             if (!EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android))
                 throw new BuildFailedException("无法切换到 Android 构建目标");
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
@@ -242,12 +251,28 @@ namespace Guandan.Editor
             Directory.CreateDirectory("Builds/Android");
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
-                scenes = new[] { TitleScenePath, ScenePath },
+                // The headset build starts in the authored tomb scene.  The opening lottery
+                // is the first interaction and lives on the large, camera-front UGUI panel;
+                // no unrelated title stage or physical-card presentation is included.
+                scenes = new[] { ScenePath },
                 target = BuildTarget.Android,
                 locationPathName = outputPath,
                 options = BuildOptions.None,
             });
             if (report.summary.result != BuildResult.Succeeded) throw new BuildFailedException("PICO APK 构建失败");
+        }
+
+        private static void VerifyPicoFlatUiBuild()
+        {
+            var failures = new List<string>();
+            if (!File.Exists(ScenePath)) failures.Add("缺少 GuandanTomb.unity");
+            var sceneText = File.Exists(ScenePath) ? File.ReadAllText(ScenePath) : string.Empty;
+            if (!sceneText.Contains("useScreenUi: 1", StringComparison.Ordinal)) failures.Add("场景未启用相机前完整牌局 UI");
+            if (!sceneText.Contains("Guandan.Game.GameDirector", StringComparison.Ordinal)) failures.Add("场景缺少地宫牌局的 GameDirector");
+            if (PlayerSettings.GetScriptingBackend(NamedBuildTarget.Android) != ScriptingImplementation.IL2CPP) failures.Add("Android 未使用 IL2CPP");
+            if ((PlayerSettings.Android.targetArchitectures & AndroidArchitecture.ARM64) == 0) failures.Add("Android 未启用 ARM64");
+            if (failures.Count > 0) throw new BuildFailedException("PICO 平面牌 UI 构建验证失败：" + string.Join("；", failures));
+            Debug.Log("[Guandan] PICO 平面牌 UI 构建验证通过：原生 VR 将直接进入地宫抽签大面板。\n");
         }
 
         private static void EnsureTitleSceneExists()

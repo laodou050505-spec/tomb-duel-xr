@@ -11,13 +11,18 @@ namespace Guandan.Game
 {
     public sealed class GameDirector : MonoBehaviour
     {
+        // This title's VR design is intentionally hybrid: tomb, table and characters are 3D,
+        // while every playable card and command is a flat panel in front of the player's eyes.
+        // Keep this authoritative instead of relying on a mutable Scene toggle.
+        private const bool UseFlatCardUiPresentation = true;
+
         [Header("Rule match")]
         [SerializeField] private bool useFixedDebugSeed;
         [SerializeField] private int debugSeed = 20260817;
         [SerializeField] private bool autoStart = true;
         [SerializeField] private bool openingLottery = true;
-        [Tooltip("使用上一版固定在玩家视野前的完整牌局界面。")]
-        [SerializeField] private bool useScreenUi;
+        [Tooltip("在地宫 VR 场景中，把手牌、操作按钮和资料卡作为相机前的平面 UI 呈现；不生成桌面实体牌模型。")]
+        [SerializeField] private bool useScreenUi = true;
         [Tooltip("关闭后不生成默认人物和 f4 箱子，保留座位锚点供你在 Scene 中自行摆放。")]
         [SerializeField] private bool spawnRuntimeAvatars;
 
@@ -62,6 +67,7 @@ namespace Guandan.Game
         private WorldButton continueButton;
         private WorldLotteryLot[] lotteryLots;
         private ScreenGameUi screenUi;
+        private readonly Dictionary<PlayerSeat, WorldSeatStatusUi> worldSeatStatusUi = new();
         private GameAudio gameAudio;
         private TreasureScenePresenter treasurePresenter;
         private RuntimeGameplayBindings gameplayBindings;
@@ -86,6 +92,9 @@ namespace Guandan.Game
         private System.Random sessionRandom;
         private System.Random aiRandom;
         private System.Random raceRandom;
+        private bool loggedKeyboardFallback;
+        private KeyCode lastFallbackKey = KeyCode.None;
+        private float lastFallbackKeyTime = -10f;
 
         public bool LotteryChosen => lotteryChosen;
         public bool LotteryBusy => lotteryBusy;
@@ -105,6 +114,11 @@ namespace Guandan.Game
 
         public GuandanMatchEngine Match => match;
         public TreasureRace Race => race;
+
+        public Transform GetAvatarTransform(PlayerSeat seat)
+        {
+            return gameplayBindings != null ? gameplayBindings.GetAvatarTransform(seat) : null;
+        }
 
         public string GetLotteryLotText(int index)
         {
@@ -289,32 +303,33 @@ namespace Guandan.Game
         public void BuildSceneAnchorsForEditor()
         {
             EnsureRoots();
-            BuildWorldUi();
-            BuildSeatLabels();
+            if (!UseFlatCardUiPresentation)
+            {
+                BuildWorldUi();
+                BuildSeatLabels();
+            }
         }
 
         private void Awake()
         {
             ResetRandomStreams();
             EnsureRoots();
-            BuildWorldUi();
-            BuildSeatLabels();
+            if (UseFlatCardUiPresentation)
+            {
+                EnsureScreenUi();
+                DisableLegacyWorldUi();
+            }
+            else
+            {
+                BuildWorldUi();
+                BuildSeatLabels();
+            }
             gameAudio = GetComponent<GameAudio>() ?? gameObject.AddComponent<GameAudio>();
             race = new TreasureRace();
             match = new GuandanMatchEngine(NextSeed());
             match.EventRaised += OnMatchEvent;
             match.StateChanged += Refresh;
             lotteryProfiles = CreateLotteryProfiles(NextSeed());
-            if (useScreenUi)
-            {
-                var camera = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
-                var screenRoot = new GameObject("ScreenGameUi");
-                screenRoot.transform.SetParent(transform, false);
-                screenUi = screenRoot.AddComponent<ScreenGameUi>();
-                screenUi.Initialize(this, camera);
-                DisableLegacyWorldUi();
-            }
-
             try
             {
                 treasurePresenter = GetComponent<TreasureScenePresenter>() ?? gameObject.AddComponent<TreasureScenePresenter>();
@@ -329,6 +344,7 @@ namespace Guandan.Game
             {
                 gameplayBindings = GetComponent<RuntimeGameplayBindings>() ?? gameObject.AddComponent<RuntimeGameplayBindings>();
                 gameplayBindings.Initialize(this, seatAnchors, NextSeed(), spawnRuntimeAvatars);
+                BuildSpatialSeatStatusUi();
             }
             catch (Exception exception)
             {
@@ -348,19 +364,28 @@ namespace Guandan.Game
             }
         }
 
+        private void Start()
+        {
+            // Runtime bindings are allowed to attach scene helpers during Awake.  Reapply the
+            // presentation boundary once all scene components have initialized so the restored
+            // flat-card mode can never reactivate the retired tabletop CardView hierarchy.
+            if (UseFlatCardUiPresentation) DisableLegacyWorldUi();
+        }
+
         private void Update()
         {
             if (!lotteryChosen)
             {
                 if (Keyboard.current != null)
                 {
-                    if (Keyboard.current.digit1Key.wasPressedThisFrame) ChooseLottery(0);
-                    else if (Keyboard.current.digit2Key.wasPressedThisFrame) ChooseLottery(1);
-                    else if (Keyboard.current.digit3Key.wasPressedThisFrame) ChooseLottery(2);
+                    if (Keyboard.current.digit1Key.wasPressedThisFrame) HandleFallbackKey(KeyCode.Alpha1);
+                    else if (Keyboard.current.digit2Key.wasPressedThisFrame) HandleFallbackKey(KeyCode.Alpha2);
+                    else if (Keyboard.current.digit3Key.wasPressedThisFrame) HandleFallbackKey(KeyCode.Alpha3);
                 }
                 return;
             }
             if (match == null || presentationLocked) return;
+            HandleKeyboardCardFallback();
 #if UNITY_EDITOR
             if (Keyboard.current != null)
             {
@@ -399,6 +424,128 @@ namespace Guandan.Game
             {
                 aiRoutine = StartCoroutine(RunAiTurn(match.ActiveSeat));
             }
+        }
+
+        // Unity's Android View still receives key events when the PICO XR activity has
+        // no input channel. IMGUI exposes those events even when the Input System keyboard
+        // device is absent, so keep the same simulator fallback available through OnGUI.
+        private void OnGUI()
+        {
+            var current = Event.current;
+            if (current == null || current.type != EventType.KeyDown) return;
+            HandleFallbackKey(current.keyCode);
+        }
+
+        private void HandleFallbackKey(KeyCode key)
+        {
+            if (key == KeyCode.None || Time.unscaledTime - lastFallbackKeyTime < 0.12f && lastFallbackKey == key)
+                return;
+            lastFallbackKey = key;
+            lastFallbackKeyTime = Time.unscaledTime;
+
+            if (!lotteryChosen)
+            {
+                if (key is KeyCode.Alpha1 or KeyCode.Keypad1) ChooseLottery(0);
+                else if (key is KeyCode.Alpha2 or KeyCode.Keypad2) ChooseLottery(1);
+                else if (key is KeyCode.Alpha3 or KeyCode.Keypad3) ChooseLottery(2);
+                return;
+            }
+
+            if (key is KeyCode.Return or KeyCode.KeypadEnter)
+            {
+                HandleAction(GameAction.Play);
+                return;
+            }
+            if (key == KeyCode.Space)
+            {
+                HandleAction(GameAction.Pass);
+                return;
+            }
+            if (match == null || presentationLocked || match.ActiveSeat != PlayerSeat.South) return;
+            var index = key switch
+            {
+                KeyCode.Alpha1 => 0,
+                KeyCode.Alpha2 => 1,
+                KeyCode.Alpha3 => 2,
+                KeyCode.Alpha4 => 3,
+                KeyCode.Alpha5 => 4,
+                KeyCode.Alpha6 => 5,
+                KeyCode.Alpha7 => 6,
+                KeyCode.Alpha8 => 7,
+                KeyCode.Alpha9 => 8,
+                KeyCode.Alpha0 => 9,
+                KeyCode.Keypad1 => 10,
+                KeyCode.Keypad2 => 11,
+                KeyCode.Keypad3 => 12,
+                KeyCode.Keypad4 => 13,
+                KeyCode.Keypad5 => 14,
+                KeyCode.Keypad6 => 15,
+                KeyCode.Keypad7 => 16,
+                KeyCode.Keypad8 => 17,
+                KeyCode.Keypad9 => 18,
+                KeyCode.Keypad0 => 19,
+                KeyCode.F2 => 20,
+                KeyCode.F3 => 21,
+                KeyCode.F4 => 22,
+                KeyCode.F5 => 23,
+                KeyCode.F6 => 24,
+                KeyCode.F7 => 25,
+                KeyCode.F8 => 26,
+                _ => -1,
+            };
+            var hand = match.GetHand(PlayerSeat.South);
+            if (index >= 0 && index < hand.Count) ToggleCardById(hand[index].Id);
+        }
+
+        /// <summary>
+        /// PICO Emulator 0.13 can lose its virtual_input service, which removes the
+        /// hand/controller click event while Android key events still reach Unity. Keep a
+        /// deterministic keyboard path for the flat-card UI so the match remains playable
+        /// during emulator diagnosis. Top-row digits select cards 1-10, numpad digits select
+        /// cards 11-20, and F2-F8 select cards 21-27. Enter/Space retain Play/Pass in the XR
+        /// bootstrap and therefore do not get repurposed here.
+        /// </summary>
+        private void HandleKeyboardCardFallback()
+        {
+            var keyboard = Keyboard.current;
+            if (keyboard == null || match == null || match.ActiveSeat != PlayerSeat.South) return;
+            if (match.Phase != MatchPhase.Playing && match.Phase != MatchPhase.TributeReturn) return;
+
+            if (!loggedKeyboardFallback)
+            {
+                loggedKeyboardFallback = true;
+                Debug.Log("[Guandan] PICO 模拟器键盘回退已启用：数字/小键盘/F2-F8 可选择平面牌 UI。");
+            }
+
+            var key = KeyCode.None;
+            if (keyboard.digit1Key.wasPressedThisFrame) key = KeyCode.Alpha1;
+            else if (keyboard.digit2Key.wasPressedThisFrame) key = KeyCode.Alpha2;
+            else if (keyboard.digit3Key.wasPressedThisFrame) key = KeyCode.Alpha3;
+            else if (keyboard.digit4Key.wasPressedThisFrame) key = KeyCode.Alpha4;
+            else if (keyboard.digit5Key.wasPressedThisFrame) key = KeyCode.Alpha5;
+            else if (keyboard.digit6Key.wasPressedThisFrame) key = KeyCode.Alpha6;
+            else if (keyboard.digit7Key.wasPressedThisFrame) key = KeyCode.Alpha7;
+            else if (keyboard.digit8Key.wasPressedThisFrame) key = KeyCode.Alpha8;
+            else if (keyboard.digit9Key.wasPressedThisFrame) key = KeyCode.Alpha9;
+            else if (keyboard.digit0Key.wasPressedThisFrame) key = KeyCode.Alpha0;
+            else if (keyboard.numpad1Key.wasPressedThisFrame) key = KeyCode.Keypad1;
+            else if (keyboard.numpad2Key.wasPressedThisFrame) key = KeyCode.Keypad2;
+            else if (keyboard.numpad3Key.wasPressedThisFrame) key = KeyCode.Keypad3;
+            else if (keyboard.numpad4Key.wasPressedThisFrame) key = KeyCode.Keypad4;
+            else if (keyboard.numpad5Key.wasPressedThisFrame) key = KeyCode.Keypad5;
+            else if (keyboard.numpad6Key.wasPressedThisFrame) key = KeyCode.Keypad6;
+            else if (keyboard.numpad7Key.wasPressedThisFrame) key = KeyCode.Keypad7;
+            else if (keyboard.numpad8Key.wasPressedThisFrame) key = KeyCode.Keypad8;
+            else if (keyboard.numpad9Key.wasPressedThisFrame) key = KeyCode.Keypad9;
+            else if (keyboard.numpad0Key.wasPressedThisFrame) key = KeyCode.Keypad0;
+            else if (keyboard.f2Key.wasPressedThisFrame) key = KeyCode.F2;
+            else if (keyboard.f3Key.wasPressedThisFrame) key = KeyCode.F3;
+            else if (keyboard.f4Key.wasPressedThisFrame) key = KeyCode.F4;
+            else if (keyboard.f5Key.wasPressedThisFrame) key = KeyCode.F5;
+            else if (keyboard.f6Key.wasPressedThisFrame) key = KeyCode.F6;
+            else if (keyboard.f7Key.wasPressedThisFrame) key = KeyCode.F7;
+            else if (keyboard.f8Key.wasPressedThisFrame) key = KeyCode.F8;
+            HandleFallbackKey(key);
         }
 
         public void HandleAction(GameAction action)
@@ -577,8 +724,8 @@ namespace Guandan.Game
         {
             var camera = Camera.main;
             if (camera == null) return;
-            FindFirstObjectByType<Guandan.XR.GuandanXRBootstrap>()?.RecenterDesktop();
-            ShowMessage("视角已回到牌桌机位");
+            FindFirstObjectByType<Guandan.XR.GuandanXRBootstrap>()?.RecenterToDesignStart();
+            ShowMessage("视角已回到南家桌边起点");
         }
 
         private IEnumerator RunAiTurn(PlayerSeat seat)
@@ -876,12 +1023,15 @@ namespace Guandan.Game
                 raceOpenRoutine = StartCoroutine(OpenRaceAfterPlacements());
             }
             UpdateAutomaticHint();
-            RenderHand();
-            RenderTablePlay();
-            RefreshSeatLabels();
-            RefreshRaceLabel();
-            RefreshWorldLottery();
-            UpdateButtonAvailability();
+            if (!UseFlatCardUiPresentation)
+            {
+                RenderHand();
+                RenderTablePlay();
+                RefreshSeatLabels();
+                RefreshRaceLabel();
+                RefreshWorldLottery();
+                UpdateButtonAvailability();
+            }
             screenUi?.Refresh();
         }
 
@@ -901,9 +1051,9 @@ namespace Guandan.Game
 
         private void RenderHand()
         {
+            if (UseFlatCardUiPresentation) return;
             foreach (var view in handViews) Destroy(view.gameObject);
             handViews.Clear();
-            if (useScreenUi) return;
             if (playerHandAnchor == null) return;
             var hand = match.GetHand(PlayerSeat.South);
             var firstRow = Mathf.Min(14, hand.Count);
@@ -925,9 +1075,9 @@ namespace Guandan.Game
 
         private void RenderTablePlay()
         {
+            if (UseFlatCardUiPresentation) return;
             foreach (var view in tableViews) Destroy(view.gameObject);
             tableViews.Clear();
-            if (useScreenUi) return;
             if (tablePlayAnchor == null || match.CurrentPlay == null) return;
             var cards = match.CurrentPlay.Cards;
             for (var i = 0; i < cards.Count; i++)
@@ -1190,17 +1340,6 @@ namespace Guandan.Game
         private void UpdateButtonAvailability()
         {
             if (match == null) return;
-            if (useScreenUi)
-            {
-                playButton?.SetAvailable(false);
-                passButton?.SetAvailable(false);
-                hintButton?.SetAvailable(false);
-                enterTreasureButton?.SetAvailable(false);
-                steadyButton?.SetAvailable(false);
-                riskyButton?.SetAvailable(false);
-                continueButton?.SetAvailable(false);
-                return;
-            }
             if (!lotteryChosen || presentationLocked)
             {
                 playButton?.SetAvailable(false);
@@ -1255,9 +1394,39 @@ namespace Guandan.Game
         {
             if (uiAnchor != null) uiAnchor.gameObject.SetActive(false);
             if (worldUiRoot != null) worldUiRoot.gameObject.SetActive(false);
+            if (cardRoot != null) cardRoot.gameObject.SetActive(false);
+            if (tablePlayRoot != null) tablePlayRoot.gameObject.SetActive(false);
+            if (playerHandAnchor != null) playerHandAnchor.gameObject.SetActive(false);
+            if (tablePlayAnchor != null) tablePlayAnchor.gameObject.SetActive(false);
+            foreach (var view in GetComponentsInChildren<CardView>(true))
+            {
+                if (view != null) view.gameObject.SetActive(false);
+            }
             foreach (var text in seatLabels.Values)
             {
                 if (text != null) text.gameObject.SetActive(false);
+            }
+        }
+
+        private void EnsureScreenUi()
+        {
+            screenUi = GetComponent<ScreenGameUi>() ?? gameObject.AddComponent<ScreenGameUi>();
+            var camera = Camera.main ?? FindFirstObjectByType<Guandan.XR.GuandanXRBootstrap>()?.HeadCamera;
+            screenUi.Initialize(this, camera);
+            screenUi.SetSpatialSeatPlaques(true);
+            Debug.Log($"[Guandan] 平面牌 UI 已启用；相机={(camera != null ? camera.name : "等待 XR 头部相机")}；桌面实体牌已禁用。");
+        }
+
+        private void BuildSpatialSeatStatusUi()
+        {
+            if (screenUi == null || seatAnchors == null || seatAnchors.Length < 4) return;
+            var plaque = Resources.Load<Sprite>("GuandanUI/SeatPlaque");
+            foreach (var seat in new[] { PlayerSeat.East, PlayerSeat.North, PlayerSeat.West })
+            {
+                if (worldSeatStatusUi.ContainsKey(seat)) continue;
+                var anchor = seatAnchors[(int)seat];
+                if (anchor == null) continue;
+                worldSeatStatusUi[seat] = WorldSeatStatusUi.Create(this, screenUi, seat, anchor, plaque);
             }
         }
 

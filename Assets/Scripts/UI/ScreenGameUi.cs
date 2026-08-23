@@ -26,6 +26,8 @@ namespace Guandan.UI
         private GameDirector director;
         private Canvas canvas;
         private RectTransform root;
+        private Camera targetCamera;
+        private int lastReportedPhysicalCardCount = -1;
         private GameObject lotteryPanel;
         private GameObject tablePanel;
         private GameObject routePanel;
@@ -80,6 +82,9 @@ namespace Guandan.UI
         private Button restartButtonUi;
         private Button playButtonUi;
         private Button passButtonUi;
+        private Button profileNorthUi;
+        private Button profileEastUi;
+        private Button profileWestUi;
         private Button[] lotteryButtons;
         private bool built;
         private PlayerSeat profileSeat;
@@ -95,12 +100,52 @@ namespace Guandan.UI
 
         public Canvas Canvas => canvas;
 
+        public void SetSpatialSeatPlaques(bool spatial)
+        {
+            SetProfileButtonVisible(profileNorthUi, !spatial);
+            SetProfileButtonVisible(profileEastUi, !spatial);
+            SetProfileButtonVisible(profileWestUi, !spatial);
+        }
+
+        private static void SetProfileButtonVisible(Button button, bool visible)
+        {
+            if (button != null && button.gameObject.activeSelf != visible)
+                button.gameObject.SetActive(visible);
+        }
+
         public void Initialize(GameDirector owner, Camera targetCamera)
         {
             director = owner;
+            this.targetCamera = targetCamera != null ? targetCamera : Camera.main;
             EnsureCanvas(targetCamera);
             if (!built) Build();
             Refresh();
+        }
+
+        private void LateUpdate()
+        {
+            // GameDirector can awake before the XR rig has tagged its head camera as MainCamera.
+            // Keep this flat HUD hidden until a head camera exists; it must never render at
+            // world origin or become a row of apparent cards sitting on the physical table.
+            if (canvas == null) return;
+            if (targetCamera == null) targetCamera = ResolveTargetCamera();
+            if (targetCamera == null)
+            {
+                if (canvas.gameObject.activeSelf) canvas.gameObject.SetActive(false);
+                return;
+            }
+            if (canvas.transform.parent != targetCamera.transform || !canvas.gameObject.activeSelf)
+                AttachToCamera(targetCamera);
+        }
+
+        private void Start()
+        {
+            // A compact runtime invariant makes Player/Emulator evidence unambiguous: only
+            // UGUI card buttons may exist in the flat-card presentation, never CardView meshes.
+            var physicalCards = FindObjectsByType<CardView>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length;
+            if (physicalCards == lastReportedPhysicalCardCount) return;
+            lastReportedPhysicalCardCount = physicalCards;
+            Debug.Log($"[Guandan] 平面牌 UI 运行态：物理 CardView={physicalCards}，Canvas父级={(canvas != null && canvas.transform.parent != null ? canvas.transform.parent.name : "未绑定")}。");
         }
 
         public void HandleTarget(UiHitKind kind, int index, string value)
@@ -142,6 +187,36 @@ namespace Guandan.UI
             }
             director.PlayUiClick();
             Refresh();
+        }
+
+        /// <summary>
+        /// Resolves Android/PICO hand-pinch presses against the actual UGUI graphics.
+        /// PICO Emulator forwards a pinch as a touch position, not as a physical controller
+        /// trigger.  In an XR camera that position is not reliably equivalent to a physics
+        /// ray, so do not use the decorative BoxCollider as the primary path here.
+        /// </summary>
+        public bool TryHandleScreenPress(Vector2 screenPosition, PointerSource source)
+        {
+            if (canvas == null || !canvas.gameObject.activeInHierarchy) return false;
+            var eventSystem = EventSystem.current ?? FindFirstObjectByType<EventSystem>();
+            var raycaster = canvas.GetComponent<GraphicRaycaster>();
+            if (eventSystem == null || raycaster == null) return false;
+
+            var eventData = new PointerEventData(eventSystem)
+            {
+                position = screenPosition,
+                button = PointerEventData.InputButton.Left,
+            };
+            var results = new List<RaycastResult>();
+            raycaster.Raycast(eventData, results);
+            foreach (var result in results)
+            {
+                var target = result.gameObject.GetComponentInParent<UiHitTarget>();
+                if (target == null || !target.isActiveAndEnabled) continue;
+                target.Interact(source);
+                return true;
+            }
+            return false;
         }
 
         public void Refresh()
@@ -266,7 +341,8 @@ namespace Guandan.UI
         private void EnsureCanvas(Camera targetCamera)
         {
             if (canvas != null) return;
-            if (targetCamera == null) targetCamera = Camera.main;
+            targetCamera ??= this.targetCamera != null ? this.targetCamera : Camera.main;
+            this.targetCamera = targetCamera;
             var existing = targetCamera != null ? targetCamera.transform.Find("Screen UI · 始终面向玩家") : null;
             if (existing != null && existing.GetComponent<RectTransform>() == null)
             {
@@ -279,35 +355,60 @@ namespace Guandan.UI
                     "Screen UI · 始终面向玩家",
                     typeof(RectTransform),
                     typeof(Canvas),
-                    typeof(CanvasScaler),
-                    typeof(GraphicRaycaster));
-            if (targetCamera != null && go.transform.parent != targetCamera.transform) go.transform.SetParent(targetCamera.transform, false);
-            go.SetActive(true);
+                    typeof(CanvasScaler));
+            go.SetActive(targetCamera != null);
             canvas = go.GetComponent<Canvas>();
             canvas.enabled = true;
             canvas.renderMode = RenderMode.WorldSpace;
-            canvas.worldCamera = targetCamera;
             canvas.sortingOrder = 100;
+            var raycaster = go.GetComponent<GraphicRaycaster>() ?? go.AddComponent<GraphicRaycaster>();
+            // This canvas is parented in front of the head camera with identity rotation,
+            // therefore the player sees its -Z side.  Filtering reversed graphics would make
+            // every visible card look clickable while rejecting all touch hit tests.
+            raycaster.ignoreReversedGraphics = false;
             var scaler = go.GetComponent<CanvasScaler>() ?? go.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
             scaler.scaleFactor = 1f;
             scaler.referencePixelsPerUnit = 100f;
-            if (go.GetComponent<GraphicRaycaster>() == null) go.AddComponent<GraphicRaycaster>();
             var rect = go.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(CanvasWidth, CanvasHeight);
-            // This canvas is attached to the player camera for the original full-board
-            // presentation: score rail, 14 + 13 cards, action buttons and profile card.
-            go.transform.localPosition = HeadsetUiOffset;
-            go.transform.localRotation = Quaternion.identity;
-            go.transform.localScale = Vector3.one * HeadsetUiScale;
             root = rect;
+            if (targetCamera != null) AttachToCamera(targetCamera);
 
-            if (FindFirstObjectByType<EventSystem>() == null)
+            // The project uses Input System-only.  An EventSystem by itself can draw and
+            // raycast a button but cannot turn Android/PICO pointer input into Button.onClick.
+            // Add the matching module whether this is a newly-created EventSystem or one
+            // already supplied by an additive scene.
+            var eventSystem = FindFirstObjectByType<EventSystem>();
+            if (eventSystem == null)
             {
-                var eventSystem = new GameObject("EventSystem · UI");
-                eventSystem.AddComponent<EventSystem>();
-                eventSystem.AddComponent<InputSystemUIInputModule>();
+                eventSystem = new GameObject("EventSystem · UI").AddComponent<EventSystem>();
             }
+            if (eventSystem.GetComponent<InputSystemUIInputModule>() == null)
+            {
+                eventSystem.gameObject.AddComponent<InputSystemUIInputModule>();
+                Debug.Log("[Guandan] 平面牌 UI 已接入 Input System EventSystem。");
+            }
+        }
+
+        private void AttachToCamera(Camera camera)
+        {
+            if (camera == null || canvas == null) return;
+            targetCamera = camera;
+            var transform = canvas.transform;
+            if (transform.parent != camera.transform) transform.SetParent(camera.transform, false);
+            canvas.worldCamera = camera;
+            // The UI stays flat, head-relative and visibly separate from the tomb models.
+            transform.localPosition = HeadsetUiOffset;
+            transform.localRotation = Quaternion.identity;
+            transform.localScale = Vector3.one * HeadsetUiScale;
+            if (!canvas.gameObject.activeSelf) canvas.gameObject.SetActive(true);
+        }
+
+        private static Camera ResolveTargetCamera()
+        {
+            if (Camera.main != null) return Camera.main;
+            return FindFirstObjectByType<Guandan.XR.GuandanXRBootstrap>()?.HeadCamera;
         }
 
         private void Build()
@@ -397,9 +498,9 @@ namespace Guandan.UI
             passButtonUi = CreateButton("Pass", new Vector2(-105f, -490f), new Vector2(190f, 82f), "过牌", new Color(0.18f, 0.34f, 0.31f), UiHitKind.Action, -1, "pass");
             playButtonUi = CreateButton("Play", new Vector2(105f, -490f), new Vector2(190f, 82f), "出牌", new Color(0.62f, 0.20f, 0.12f), UiHitKind.Action, -1, "play");
 
-            CreateButton("ProfileNorth", new Vector2(0f, 286f), new Vector2(278f, 120f), "北家", new Color(0.12f, 0.20f, 0.18f), UiHitKind.Profile, 2, null);
-            CreateButton("ProfileEast", new Vector2(770f, 184f), new Vector2(255f, 110f), "东家", new Color(0.17f, 0.13f, 0.13f), UiHitKind.Profile, 1, null);
-            CreateButton("ProfileWest", new Vector2(-770f, 184f), new Vector2(255f, 110f), "西家", new Color(0.17f, 0.13f, 0.13f), UiHitKind.Profile, 3, null);
+            profileNorthUi = CreateButton("ProfileNorth", new Vector2(0f, 286f), new Vector2(278f, 120f), "北家", new Color(0.12f, 0.20f, 0.18f), UiHitKind.Profile, 2, null);
+            profileEastUi = CreateButton("ProfileEast", new Vector2(770f, 184f), new Vector2(255f, 110f), "东家", new Color(0.17f, 0.13f, 0.13f), UiHitKind.Profile, 1, null);
+            profileWestUi = CreateButton("ProfileWest", new Vector2(-770f, 184f), new Vector2(255f, 110f), "西家", new Color(0.17f, 0.13f, 0.13f), UiHitKind.Profile, 3, null);
             turnCalloutNorth = CreateText("TurnNorth", "", tableRect, new Vector2(-390f, 296f), 18, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.48f));
             turnCalloutEast = CreateText("TurnEast", "", tableRect, new Vector2(770f, 108f), 18, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.48f));
             turnCalloutWest = CreateText("TurnWest", "", tableRect, new Vector2(-770f, 108f), 18, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.48f));
