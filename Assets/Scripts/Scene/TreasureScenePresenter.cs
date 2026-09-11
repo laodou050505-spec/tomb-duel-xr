@@ -26,9 +26,16 @@ namespace Guandan.Scene
         private Vector3[][] trackPositions;
         private float[][] trackTileTopY;
         private Vector3[] pieceBaseScales;
+        private Quaternion[] pieceBaseRotations;
+        private Coroutine finaleRoutine;
+        private TreasureCelebration celebration;
+        public bool ResultReady { get; private set; }
         private Transform treasureGlow;
         private ParticleSystem treasureParticles;
         private Light treasureLight;
+        private ParticleSystem treasureHaze;
+        private Material treasureGlowMaterial;
+        private float treasureCelebration;
         private Text[] flagScoreTexts;
         private Coroutine[] moveRoutines;
         private Coroutine chestRoutine;
@@ -43,8 +50,13 @@ namespace Guandan.Scene
             pieces[0] = FindAuthoredPiece(0);
             pieces[1] = FindAuthoredPiece(1);
             pieceBaseScales = new Vector3[2];
+            pieceBaseRotations = new Quaternion[2];
             for (var team = 0; team < pieces.Length; team++)
+            {
                 pieceBaseScales[team] = pieces[team] != null ? pieces[team].localScale : Vector3.one;
+                pieceBaseRotations[team] = pieces[team] != null ? pieces[team].rotation : Quaternion.identity;
+            }
+            celebration = gameObject.AddComponent<TreasureCelebration>();
             BindScoreFlags();
             BindChestTreasureGlow();
             ResetPresentation();
@@ -53,25 +65,103 @@ namespace Guandan.Scene
         public void ResetPresentation()
         {
             if (pieces == null || trackPositions == null) return;
+            if (finaleRoutine != null) StopCoroutine(finaleRoutine);
+            finaleRoutine = null;
+            ResultReady = false;
+            celebration?.Clear();
+            if (chestRoutine != null) StopCoroutine(chestRoutine);
+            chestRoutine = null;
+            treasureCelebration = 0f;
             for (var team = 0; team < pieces.Length; team++)
             {
-                if (pieces[team] != null) pieces[team].position = TrackPosition(team, 0);
+                if (moveRoutines[team] != null) StopCoroutine(moveRoutines[team]);
+                moveRoutines[team] = null;
+                if (pieces[team] != null)
+                {
+                    pieces[team].rotation = pieceBaseRotations[team];
+                    pieces[team].localScale = pieceBaseScales[team];
+                    pieces[team].position = TrackPosition(team, 0);
+                }
             }
-            if (treasureGlow != null) treasureGlow.gameObject.SetActive(false);
-            if (treasureParticles != null) treasureParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            if (treasureLight != null) treasureLight.intensity = 0f;
+            if (treasureGlow != null) treasureGlow.gameObject.SetActive(true);
+            if (treasureParticles != null) { treasureParticles.Clear(); treasureParticles.Play(); }
+            if (treasureHaze != null) { treasureHaze.Clear(); treasureHaze.Play(); }
+        }
+
+        private void Update()
+        {
+            if (treasureLight == null) return;
+            // Slow breathing illumination, never a full-screen flash or rapid strobe.
+            treasureLight.intensity = 2.5f + 0.35f * Mathf.Sin(Time.time * 1.65f) + treasureCelebration * 2.2f;
+        }
+
+        private void OnDestroy()
+        {
+            if (treasureGlowMaterial != null) Destroy(treasureGlowMaterial);
         }
 
         public void MoveTeam(int team, int from, int to, bool openChest)
         {
-            if (pieces == null || team < 0 || team >= pieces.Length || pieces[team] == null) return;
-            if (moveRoutines[team] != null) StopCoroutine(moveRoutines[team]);
-            moveRoutines[team] = StartCoroutine(MoveRoutine(team, from, to));
+            if (pieces == null || team < 0 || team >= pieces.Length) return;
+            if (pieces[team] != null)
+            {
+                if (moveRoutines[team] != null) StopCoroutine(moveRoutines[team]);
+                moveRoutines[team] = StartCoroutine(MoveRoutine(team, from, to));
+            }
             if (openChest)
             {
-                if (chestRoutine != null) StopCoroutine(chestRoutine);
-                chestRoutine = StartCoroutine(OpenChestRoutine());
+                if (finaleRoutine != null) StopCoroutine(finaleRoutine);
+                finaleRoutine = StartCoroutine(FinaleRoutine(team));
             }
+        }
+
+        private IEnumerator FinaleRoutine(int team)
+        {
+            ResultReady = false;
+            while (moveRoutines[team] != null) yield return null;
+            if (chestRoutine != null) StopCoroutine(chestRoutine);
+            chestRoutine = StartCoroutine(OpenChestRoutine());
+            var piece = pieces[team];
+            if (piece != null && Camera.main != null)
+            {
+                // Imported model axes include the authored -90 degree FBX correction.
+                // Rotate in WORLD yaw from its authored chest-facing +X, preserving that correction.
+                var toward = Camera.main.transform.position - piece.position; toward.y = 0f;
+                var target = Quaternion.FromToRotation(Vector3.right, toward.normalized) * pieceBaseRotations[team];
+                var initial = piece.rotation;
+                for (var t = 0f; t < 0.4f; t += Time.deltaTime)
+                {
+                    piece.rotation = Quaternion.Slerp(initial, target, Mathf.SmoothStep(0f, 1f, t / 0.4f));
+                    yield return null;
+                }
+                piece.rotation = target;
+            }
+            ResultReady = true;
+            FindFirstObjectByType<Guandan.UI.ScreenGameUi>()?.Refresh();
+            if (team == 0) celebration.Play(Camera.main, sceneRoot);
+            if (piece != null)
+            {
+                var origin = piece.position;
+                var facing = piece.rotation;
+                var side = Camera.main != null ? Vector3.ProjectOnPlane(Camera.main.transform.right, Vector3.up).normalized : Vector3.right;
+                // Six alternating hops, then settle. Never move the camera or deform bones.
+                for (var hop = 0; hop < 6; hop++)
+                {
+                    var start = piece.position;
+                    var end = origin + side * (hop == 5 ? 0f : (hop % 2 == 0 ? -0.22f : 0.22f));
+                    for (var t = 0f; t < 0.64f; t += Time.deltaTime)
+                    {
+                        var p = Mathf.Clamp01(t / 0.64f);
+                        var arc = Mathf.Sin(p * Mathf.PI);
+                        piece.position = Vector3.Lerp(start, end, p) + Vector3.up * arc * 0.42f;
+                        piece.rotation = Quaternion.AngleAxis((hop % 2 == 0 ? -1f : 1f) * arc * 7f, Vector3.up) * facing;
+                        yield return null;
+                    }
+                    piece.position = end; piece.rotation = facing;
+                }
+                piece.position = origin; piece.rotation = facing;
+            }
+            finaleRoutine = null;
         }
 
         private void BuildTrackPositions()
@@ -218,7 +308,8 @@ namespace Guandan.Scene
                 .Where(item => item != null && item.position.z > 23f && item.position.z < 34f)
                 .Where(item => item.name.Contains("Chest", StringComparison.OrdinalIgnoreCase)
                     || ChestPrefixes.Any(prefix => item.name.StartsWith(prefix, StringComparison.Ordinal)))
-                .OrderBy(item => Vector3.SqrMagnitude(item.position - new Vector3(0f, 0f, 26.5f)))
+                .OrderBy(item => item.name.StartsWith(ChestPrefixes[0], StringComparison.Ordinal) ? 0 : 1)
+                .ThenBy(item => Vector3.SqrMagnitude(item.position - new Vector3(0f, 0f, 26.5f)))
                 .FirstOrDefault();
             if (chest == null)
             {
@@ -230,45 +321,69 @@ namespace Guandan.Scene
             for (var i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
             var root = new GameObject("TreasureGlow · 宝箱内部金光");
             root.transform.SetParent(sceneRoot, false);
-            root.transform.position = new Vector3(bounds.center.x, bounds.min.y + bounds.size.y * 0.55f, bounds.center.z);
+            root.transform.position = new Vector3(bounds.center.x, bounds.min.y + bounds.size.y * 0.43f, bounds.center.z);
             treasureGlow = root.transform;
             treasureLight = root.AddComponent<Light>();
             treasureLight.type = LightType.Point;
-            treasureLight.color = new Color(1f, 0.58f, 0.12f);
-            treasureLight.range = 5.5f;
-            treasureLight.intensity = 0f;
-            treasureLight.shadows = LightShadows.Soft;
+            treasureLight.color = new Color(1f, 0.78f, 0.30f);
+            treasureLight.range = 3.2f;
+            treasureLight.intensity = 1.65f;
+            treasureLight.shadows = LightShadows.None;
 
             treasureParticles = root.AddComponent<ParticleSystem>();
+            treasureParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             var main = treasureParticles.main;
             main.loop = true;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.8f, 1.6f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(0.22f, 0.72f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.035f, 0.13f);
-            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.48f, 0.05f, 0.92f), new Color(1f, 0.91f, 0.38f, 1f));
-            main.maxParticles = 90;
+            main.prewarm = true;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(1.5f, 2.6f);
+            main.startSpeed = 0f;
+            main.startSize = new ParticleSystem.MinMaxCurve(0.10f, 0.23f);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.72f, 0.21f, 0.8f), new Color(1f, 0.95f, 0.64f, 1f));
+            main.maxParticles = 110;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             var emission = treasureParticles.emission;
-            emission.rateOverTime = 34f;
+            emission.rateOverTime = 38f;
             var shape = treasureParticles.shape;
             shape.shapeType = ParticleSystemShapeType.Box;
-            shape.scale = new Vector3(Mathf.Max(0.6f, bounds.size.x * 0.62f), 0.12f, Mathf.Max(0.4f, bounds.size.z * 0.46f));
+            shape.scale = new Vector3(Mathf.Max(0.3f, bounds.size.x * 0.62f), 0.12f, Mathf.Max(0.2f, bounds.size.z * 0.32f));
+            var velocity = treasureParticles.velocityOverLifetime;
+            velocity.enabled = true;
+            velocity.space = ParticleSystemSimulationSpace.World;
+            velocity.x = new ParticleSystem.MinMaxCurve(-0.035f, 0.035f);
+            velocity.y = new ParticleSystem.MinMaxCurve(0.22f, 0.48f);
+            velocity.z = new ParticleSystem.MinMaxCurve(-0.035f, 0.035f);
             var color = treasureParticles.colorOverLifetime;
             color.enabled = true;
             var gradient = new Gradient();
             gradient.SetKeys(
-                new[] { new GradientColorKey(new Color(1f, 0.52f, 0.08f), 0f), new GradientColorKey(new Color(1f, 0.92f, 0.40f), 1f) },
+                new[] { new GradientColorKey(new Color(1f, 0.76f, 0.30f), 0f), new GradientColorKey(new Color(1f, 0.95f, 0.62f), 1f) },
                 new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.18f), new GradientAlphaKey(0f, 1f) });
             color.color = gradient;
             var particleRenderer = treasureParticles.GetComponent<ParticleSystemRenderer>();
-            var particleShader = ResolveEffectShader();
+            // Explicit Resources reference keeps this procedural shader in Android builds.
+            var particleShader = Resources.Load<Shader>("GuandanUI/TreasureSparkle");
             if (particleShader != null)
             {
-                particleRenderer.material = new Material(particleShader);
-                if (particleRenderer.material.HasProperty("_Color"))
-                    particleRenderer.material.SetColor("_Color", new Color(1f, 0.58f, 0.10f, 0.95f));
+                treasureGlowMaterial = new Material(particleShader);
+                particleRenderer.sharedMaterial = treasureGlowMaterial;
             }
-            root.SetActive(false);
+            particleRenderer.renderMode = ParticleSystemRenderMode.Billboard;
+            var hazeObject = new GameObject("Treasure mouth · soft gold");
+            hazeObject.transform.SetParent(root.transform, false);
+            treasureHaze = hazeObject.AddComponent<ParticleSystem>();
+            treasureHaze.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            var hazeMain = treasureHaze.main;
+            hazeMain.loop = true; hazeMain.prewarm = true;
+            hazeMain.startLifetime = 2.4f; hazeMain.startSpeed = 0f;
+            hazeMain.startSize = Mathf.Clamp(bounds.size.x * 0.82f, 0.8f, 2.2f);
+            hazeMain.startColor = new Color(1f, 0.74f, 0.24f, 0.22f);
+            hazeMain.maxParticles = 6;
+            var hazeEmission = treasureHaze.emission; hazeEmission.rateOverTime = 2f;
+            var hazeShape = treasureHaze.shape; hazeShape.enabled = false;
+            var hazeColor = treasureHaze.colorOverLifetime; hazeColor.enabled = true; hazeColor.color = gradient;
+            var hazeRenderer = treasureHaze.GetComponent<ParticleSystemRenderer>();
+            hazeRenderer.sharedMaterial = treasureGlowMaterial;
+            hazeRenderer.renderMode = ParticleSystemRenderMode.Billboard;
         }
 
         private IEnumerator MoveRoutine(int team, int from, int to)
@@ -284,7 +399,7 @@ namespace Guandan.Scene
                 var next = current + direction;
                 var start = TrackPosition(team, current);
                 var end = TrackPosition(team, next);
-                const float duration = 0.48f;
+                const float duration = 0.36f;
                 for (var elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
                 {
                     var progress = Mathf.Clamp01(elapsed / duration);
@@ -302,7 +417,7 @@ namespace Guandan.Scene
                     : piece.localScale;
                 FindFirstObjectByType<GameDirector>()?.PlayTreasureStepFeedback();
                 yield return LandingPulse(end, team);
-                yield return new WaitForSeconds(0.24f);
+                yield return new WaitForSeconds(0.08f);
                 current = next;
             }
             moveRoutines[team] = null;
@@ -351,21 +466,13 @@ namespace Guandan.Scene
 
         private IEnumerator OpenChestRoutine()
         {
-            for (var time = 0f; time < 1.25f; time += Time.deltaTime)
+            treasureParticles?.Emit(35);
+            for (var time = 0f; time < 1.1f; time += Time.deltaTime)
             {
-                var progress = Mathf.Clamp01(time / 1.25f);
-                if (treasureGlow != null && !treasureGlow.gameObject.activeSelf)
-                {
-                    treasureGlow.gameObject.SetActive(true);
-                    treasureParticles?.Play();
-                }
-                if (treasureLight != null)
-                    treasureLight.intensity = Mathf.Lerp(0f, 4.2f, Mathf.SmoothStep(0f, 1f, progress))
-                        + Mathf.Sin(time * 17f) * 0.25f;
-                if (treasureGlow != null)
-                    treasureGlow.Rotate(Vector3.up, 18f * Time.deltaTime, Space.World);
+                treasureCelebration = Mathf.Sin(Mathf.Clamp01(time / 1.1f) * Mathf.PI);
                 yield return null;
             }
+            treasureCelebration = 0.3f;
             chestRoutine = null;
         }
 

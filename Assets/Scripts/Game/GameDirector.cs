@@ -112,8 +112,20 @@ namespace Guandan.Game
         public bool TreasureViewActive => treasureViewActive;
         public bool CanSubmitSelection => CanSubmitSelectedCards();
 
+        public void PreviewTarget(UiHitTarget target)
+        {
+            screenUi?.PreviewTarget(target);
+        }
+
         public GuandanMatchEngine Match => match;
         public TreasureRace Race => race;
+
+        /// <summary>
+        /// World-space anchor for the playable table UI.  The anchor belongs to the
+        /// authored gameplay root rather than the HMD, so the panel stays in the tomb
+        /// when the player turns their head or walks around the table.
+        /// </summary>
+        public Transform WorldUiAnchor => uiAnchor;
 
         public Transform GetAvatarTransform(PlayerSeat seat)
         {
@@ -152,6 +164,18 @@ namespace Guandan.Game
                 ? OrderPatternCards(play)
                 : Array.Empty<Card>();
         }
+
+        public bool TryGetSeatWildcard(PlayerSeat seat, string cardId, out WildcardUse use)
+        {
+            if (seatPlayPatterns.TryGetValue(seat, out var play) && play != null)
+                foreach (var item in play.Wildcards)
+                    if (item.CardId == cardId) { use = item; return true; }
+            use = default;
+            return false;
+        }
+
+        public bool MatchResultReady => race != null && race.IsComplete
+            && (treasurePresenter == null || treasurePresenter.ResultReady);
 
         public bool IsCardSelected(string cardId) => !string.IsNullOrEmpty(cardId) && selectedIds.Contains(cardId);
         public bool IsHinted(string cardId) => !string.IsNullOrEmpty(cardId) && hintedIds.Contains(cardId);
@@ -243,7 +267,7 @@ namespace Guandan.Game
             lotteryStatusMessage = $"你与 {chosen.Name} 同队，对阵 {opponents[0].Name}、{opponents[1].Name}";
             RefreshWorldLottery();
             screenUi?.Refresh();
-            yield return new WaitForSeconds(1.15f);
+            yield return new WaitForSeconds(0.65f);
             lotteryChosen = true;
             lotteryBusy = false;
             lotteryRoutine = null;
@@ -291,7 +315,7 @@ namespace Guandan.Game
             presentationMessage = $"第 {match.HandNumber} 小局 · 打 {level}\n红桃 {level} 为逢人配";
             Refresh();
             gameAudio?.Reward();
-            yield return new WaitForSeconds(1.65f);
+            yield return new WaitForSeconds(0.65f);
             presentationMessage = string.Empty;
             presentationLocked = false;
             dealRoutine = null;
@@ -660,7 +684,7 @@ namespace Guandan.Game
             screenUi?.Refresh();
         }
 
-        public void UseSocialProp(SocialPropType type, PlayerSeat target)
+        public void UseSocialProp(SocialPropType type, PlayerSeat target, Vector3? impactPoint = null)
         {
             if (!lotteryChosen || raceOpen || match == null || match.Phase == MatchPhase.MatchComplete) return;
             var profile = GetProfile(target);
@@ -668,7 +692,7 @@ namespace Guandan.Game
                 ? $"鲜花送给{profile.Name}。{profile.Reaction}"
                 : $"西红柿飞向{profile.Name}。{profile.Reaction}";
             if (type == SocialPropType.Flower) gameAudio?.Flower(); else gameAudio?.Tomato();
-            gameplayBindings?.PlaySocialReaction(target, type);
+            gameplayBindings?.PlaySocialReaction(target, type, impactPoint);
             ShowMessage(text);
         }
 
@@ -725,7 +749,7 @@ namespace Guandan.Game
             var camera = Camera.main;
             if (camera == null) return;
             FindFirstObjectByType<Guandan.XR.GuandanXRBootstrap>()?.RecenterToDesignStart();
-            ShowMessage("视角已回到南家桌边起点");
+            ShowMessage(treasureViewActive ? "视角已回到夺宝台起点" : "视角已回到南家桌边起点");
         }
 
         private IEnumerator RunAiTurn(PlayerSeat seat)
@@ -735,19 +759,14 @@ namespace Guandan.Game
             aiPromptRequested = false;
             gameplayBindings?.SetThinking(seat, true);
             var legalCount = match.GetLegalPlays(seat).Count;
-            var complexity = Mathf.Clamp01((legalCount - 3f) / 18f) * 0.85f
-                + (match.CurrentPlay != null ? 0.32f : 0f)
-                + (match.GetHand(seat).Count <= 8 ? 0.30f : 0f);
-            var thinkingSeconds = Mathf.Lerp(profile.ThinkMin, profile.ThinkMax, (float)aiRandom.NextDouble()) + complexity;
-            if (aiRandom.NextDouble() < 0.10 + (1f - profile.RiskBias) * 0.08f)
-                thinkingSeconds += Mathf.Lerp(1.8f, 4.6f, (float)aiRandom.NextDouble());
-            var thinkUntil = Time.time + Mathf.Clamp(thinkingSeconds, 0.45f, 8.5f);
+            var thinkUntil = Time.time + AiThinkDuration(profile, legalCount,
+                match.CurrentPlay != null, match.GetHand(seat).Count, (float)aiRandom.NextDouble());
             while (Time.time < thinkUntil)
             {
                 if (aiPromptRequested && thinkingSeat == seat)
                 {
                     aiPromptRequested = false;
-                    thinkUntil = Mathf.Min(thinkUntil, Time.time + 0.62f);
+                    thinkUntil = Mathf.Min(thinkUntil, Time.time + 0.30f);
                 }
                 yield return null;
             }
@@ -758,6 +777,17 @@ namespace Guandan.Game
             var chosen = GuandanAI.ChoosePlay(match, seat, personality, aiRandom);
             if (chosen == null && match.CurrentPlay != null) match.Pass(seat);
             else if (chosen != null) match.Play(seat, chosen);
+        }
+
+        public static float AiThinkDuration(PlayerProfile profile, int legalCount, bool responding, int handCount, float variation)
+        {
+            // Keep personality differences, but never add a second artificial long pause.
+            if (legalCount == 0) return Mathf.Lerp(0.45f, 0.70f, Mathf.Clamp01(variation));
+            var minimum = Mathf.Clamp(profile.ThinkMin * 0.45f, 0.55f, 0.80f);
+            var maximum = Mathf.Clamp(profile.ThinkMax * 0.28f, 0.85f, 1.40f);
+            var complexity = Mathf.Clamp01((legalCount - 3f) / 18f) * 0.30f
+                + (responding ? 0.12f : 0f) + (handCount <= 8 ? 0.12f : 0f);
+            return Mathf.Clamp(Mathf.Lerp(minimum, maximum, Mathf.Clamp01(variation)) + complexity, 0.55f, 2f);
         }
 
 #if UNITY_EDITOR
@@ -908,6 +938,7 @@ namespace Guandan.Game
             riskyButton?.SetAvailable(false);
             if (race.IsComplete)
             {
+                FindFirstObjectByType<Guandan.XR.GuandanXRBootstrap>()?.FrameTreasureFinale();
                 gameAudio?.Chest();
                 match.MarkMatchComplete();
                 continueButton?.SetAvailable(false);
@@ -919,13 +950,18 @@ namespace Guandan.Game
                 gameAudio?.Reward();
                 continueButton?.SetAvailable(true);
             }
-            screenUi?.PlayTreasureMove(team, previousPosition, result.Position, race.IsComplete);
+            if (!race.IsComplete) screenUi?.PlayTreasureMove(team, previousPosition, result.Position, false);
             treasurePresenter?.MoveTeam(team, previousPosition, result.Position, race.IsComplete);
+            // AI resolves directly, without HandleAction's final Refresh. Publish its
+            // result here too so the route UI cannot remain stuck on "waiting".
+            screenUi?.Refresh();
         }
 
         private IEnumerator RunAiRoute()
         {
-            yield return new WaitForSeconds(1.0f);
+            // Show the destination before the brief choice delay, not after it.
+            EnterTreasureView();
+            yield return new WaitForSeconds(Mathf.Lerp(0.70f, 1.10f, (float)aiRandom.NextDouble()));
             aiRouteRoutine = null;
             if (match == null || match.Phase != MatchPhase.HandComplete || !raceOpen || raceResolved) yield break;
             EnterTreasureView();
@@ -1037,7 +1073,7 @@ namespace Guandan.Game
 
         private IEnumerator OpenRaceAfterPlacements()
         {
-            yield return new WaitForSeconds(1.10f);
+            yield return new WaitForSeconds(0.65f);
             raceOpenRoutine = null;
             if (match == null || match.Phase != MatchPhase.HandComplete) yield break;
             screenUi?.ClearPlacementStamps();
@@ -1392,7 +1428,19 @@ namespace Guandan.Game
 
         private void DisableLegacyWorldUi()
         {
-            if (uiAnchor != null) uiAnchor.gameObject.SetActive(false);
+            // UIAnchor now hosts the real world-space UGUI panel. Keep the anchor alive and
+            // hide only the retired tabletop TextMesh/WorldButton children serialized in
+            // older scenes; disabling the entire anchor would also hide the new XR panel.
+            if (uiAnchor != null)
+            {
+                uiAnchor.gameObject.SetActive(true);
+                foreach (Transform child in uiAnchor)
+                {
+                    if (child.name == "World Table UI · 世界空间") continue;
+                    if (child.GetComponent<WorldButton>() != null || child.GetComponent<TextMesh>() != null)
+                        child.gameObject.SetActive(false);
+                }
+            }
             if (worldUiRoot != null) worldUiRoot.gameObject.SetActive(false);
             if (cardRoot != null) cardRoot.gameObject.SetActive(false);
             if (tablePlayRoot != null) tablePlayRoot.gameObject.SetActive(false);
@@ -1414,7 +1462,7 @@ namespace Guandan.Game
             var camera = Camera.main ?? FindFirstObjectByType<Guandan.XR.GuandanXRBootstrap>()?.HeadCamera;
             screenUi.Initialize(this, camera);
             screenUi.SetSpatialSeatPlaques(true);
-            Debug.Log($"[Guandan] 平面牌 UI 已启用；相机={(camera != null ? camera.name : "等待 XR 头部相机")}；桌面实体牌已禁用。");
+            Debug.Log($"[Guandan] 世界空间牌 UI 已启用；锚点={(uiAnchor != null ? uiAnchor.name : "等待 UIAnchor")}；相机={(camera != null ? camera.name : "等待 XR 头部相机")}；实体牌模型已禁用。");
         }
 
         private void BuildSpatialSeatStatusUi()
@@ -1434,9 +1482,14 @@ namespace Guandan.Game
         {
             if (play == null) return Array.Empty<Card>();
             var ascending = play.Kind is PlayKind.Straight or PlayKind.ConsecutivePairs or PlayKind.SteelPlate;
-            var groups = play.Cards.GroupBy(card => EffectiveRank(card, play));
+            // Presentation groups by the value actually printed on the card. This keeps
+            // identical visible ranks adjacent even when a wildcard represents another
+            // rank internally; e.g. a full house is always shown as 22299, never 92922.
+            var groups = play.Cards.GroupBy(card => card.Rank);
             var orderedGroups = play.Kind == PlayKind.FullHouse
-                ? groups.OrderByDescending(group => group.Count()).ThenByDescending(group => group.Key)
+                ? groups.OrderByDescending(group => group.Count())
+                    .ThenByDescending(group => group.Key == play.MainRank)
+                    .ThenByDescending(group => group.Key)
                 : ascending
                     ? groups.OrderBy(group => group.Key)
                     : groups.OrderByDescending(group => group.Key);

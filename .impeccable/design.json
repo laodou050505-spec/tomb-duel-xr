@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-08T06:12:23.895671+00:00",
+  "title": "Design System: 地宫争锋 / Tomb Duel — Title Extension",
+  "extensions": {
+    "colorMeta": {
+      "jade-rest": {
+        "role": "primary",
+        "displayName": "暗玉底",
+        "tonalRamp": [
+          "oklch(15% 0.03 160)",
+          "oklch(26% 0.03 160)",
+          "oklch(37% 0.03 160)",
+          "oklch(49% 0.03 160)",
+          "oklch(60% 0.03 160)",
+          "oklch(72% 0.03 160)",
+          "oklch(84% 0.03 160)",
+          "oklch(95% 0.03 160)"
+        ],
+        "note": "仅供面板展示的合成色阶，不是 Unity 运行时 token。"
+      },
+      "jade-hover": {
+        "role": "primary",
+        "displayName": "亮玉底",
+        "tonalRamp": [
+          "oklch(15% 0.03 157)",
+          "oklch(26% 0.03 157)",
+          "oklch(37% 0.03 157)",
+          "oklch(49% 0.03 157)",
+          "oklch(60% 0.03 157)",
+          "oklch(72% 0.03 157)",
+          "oklch(84% 0.03 157)",
+          "oklch(95% 0.03 157)"
+        ],
+        "note": "仅供面板展示的合成色阶，不是 Unity 运行时 token。"
+      },
+      "bronze-edge": {
+        "role": "secondary",
+        "displayName": "青铜细边",
+        "tonalRamp": [
+          "oklch(15% 0.03 80)",
+          "oklch(26% 0.03 80)",
+          "oklch(37% 0.03 80)",
+          "oklch(49% 0.03 80)",
+          "oklch(60% 0.03 80)",
+          "oklch(72% 0.03 80)",
+          "oklch(84% 0.03 80)",
+          "oklch(95% 0.03 80)"
+        ],
+        "note": "仅供面板展示的合成色阶，不是 Unity 运行时 token。"
+      },
+      "gold-edge-hover": {
+        "role": "secondary",
+        "displayName": "金色亮边",
+        "tonalRamp": [
+          "oklch(15% 0.03 90)",
+          "oklch(26% 0.03 90)",
+          "oklch(37% 0.03 90)",
+          "oklch(49% 0.03 90)",
+          "oklch(60% 0.03 90)",
+          "oklch(72% 0.03 90)",
+          "oklch(84% 0.03 90)",
+          "oklch(95% 0.03 90)"
+        ],
+        "note": "仅供面板展示的合成色阶，不是 Unity 运行时 token。"
+      },
+      "gold-label": {
+        "role": "secondary",
+        "displayName": "古金字",
+        "tonalRamp": [
+          "oklch(15% 0.03 90)",
+          "oklch(26% 0.03 90)",
+          "oklch(37% 0.03 90)",
+          "oklch(49% 0.03 90)",
+          "oklch(60% 0.03 90)",
+          "oklch(72% 0.03 90)",
+          "oklch(84% 0.03 90)",
+          "oklch(95% 0.03 90)"
+        ],
+        "note": "仅供面板展示的合成色阶，不是 Unity 运行时 token。"
+      },
+      "ivory-label-hover": {
+        "role": "secondary",
+        "displayName": "暖象牙字",
+        "tonalRamp": [
+          "oklch(15% 0.03 100)",
+          "oklch(26% 0.03 100)",
+          "oklch(37% 0.03 100)",
+          "oklch(49% 0.03 100)",
+          "oklch(60% 0.03 100)",
+          "oklch(72% 0.03 100)",
+          "oklch(84% 0.03 100)",
+          "oklch(95% 0.03 100)"
+        ],
+        "note": "仅供面板展示的合成色阶，不是 Unity 运行时 token。"
+      },
+      "tomb-dark": {
+        "role": "neutral",
+        "displayName": "地宫暗场",
+        "tonalRamp": [
+          "oklch(15% 0.03 160)",
+          "oklch(26% 0.03 160)",
+          "oklch(37% 0.03 160)",
+          "oklch(49% 0.03 160)",
+          "oklch(60% 0.03 160)",
+          "oklch(72% 0.03 160)",
+          "oklch(84% 0.03 160)",
+          "oklch(95% 0.03 160)"
+        ],
+        "note": "仅供面板展示的合成色阶，不是 Unity 运行时 token。"
+      }
+    },
+    "motion": [
+      {
+        "name": "button-smoothing",
+        "value": "1 - exp(-18 * unscaledDeltaTime)",
+        "purpose": "Unity 指向及按下状态插值。"
+      },
+      {
+        "name": "button-scale",
+        "value": "1 + hover * 0.035 - press * 0.055",
+        "purpose": "视觉子节点反馈；碰撞体不缩放。"
+      },
+      {
+        "name": "scene-fade",
+        "value": "0.25s linear",
+        "purpose": "异步场景就绪后的暗场过渡。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "ENTER TOMB",
+      "kind": "button",
+      "refersTo": "title-button",
+      "description": "Unity 控件的浏览器示意翻译；CSS px 代表画布单位，浏览器字体回退并非游戏字体替换。",
+      "html": "<button class=\"ds-title-entry\">ENTER TOMB</button>",
+      "css": ".ds-title-entry {width:424px;height:76px;border:1.5px solid rgb(61% 49% 28% / 95%);border-radius:0;background:rgb(3.5% 6.4% 5.4% / 94%);color:rgb(94% 86% 65%);font:32px Arial,sans-serif;transition:transform .12s,background .12s,color .12s,border-color .12s;cursor:pointer} .ds-title-entry:hover,.ds-title-entry:focus-visible {outline:none;background:rgb(14% 26% 21% / 98%);color:rgb(100% 97% 83%);border-color:rgb(100% 84% 48%);transform:scale(1.035)} .ds-title-entry:active {transform:scale(.98)} .ds-title-entry:disabled {cursor:default;color:rgb(65.8% 60.2% 45.5%)}"
+    },
+    {
+      "name": "EXIT",
+      "kind": "button",
+      "refersTo": "title-button",
+      "description": "Unity 控件的浏览器示意翻译；CSS px 代表画布单位，浏览器字体回退并非游戏字体替换。",
+      "html": "<button class=\"ds-title-exit\">EXIT</button>",
+      "css": ".ds-title-exit {width:300px;height:64px;border:1.5px solid rgb(61% 49% 28% / 95%);border-radius:0;background:rgb(3.5% 6.4% 5.4% / 94%);color:rgb(94% 86% 65%);font:27px Arial,sans-serif;transition:transform .12s,background .12s,color .12s,border-color .12s;cursor:pointer} .ds-title-exit:hover,.ds-title-exit:focus-visible {outline:none;background:rgb(14% 26% 21% / 98%);color:rgb(100% 97% 83%);border-color:rgb(100% 84% 48%);transform:scale(1.035)} .ds-title-exit:active {transform:scale(.98)} .ds-title-exit:disabled {cursor:default;color:rgb(65.8% 60.2% 45.5%)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "青铜玉印地宫入口",
+    "overview": "本规范记录独立启动封面的现状。用户于 2026-09-08 确认沿用 TOMB DUEL / GUANDAN TREASURE、中央徽记、暗黑地宫、青铜与玉石，以及下方菜单的参考方向。地宫建筑与古金标题承担画面气氛，实时按钮承担清晰的选择与反馈。\n\n作用域仅为启动封面扩展。现有 GuandanTomb 的牌局、模型、相机、牌面 UI 与规则继续由原实现定义；本文件不建立全局牌局的新规范。",
+    "keyCharacteristics": [
+      "中央圆形玉印、两侧雕刻石壁与大型古金英文标题。",
+      "两个垂直居中的实时控件，以玉色底和细青铜边回应交互。",
+      "固定世界空间画布，桌面窄窗口通过相机取景保留完整菜单。"
+    ],
+    "rules": [
+      {
+        "name": "The Asset Lettering Rule",
+        "body": "主标题与副标题随已批准封面资产维护，功能标签继续以实时文本绘制。",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "**Do** 维持已批准的 TOMB DUEL / GUANDAN TREASURE 图像标题和青铜玉石地宫方向。",
+      "**Do** 让入口、退出的指向、键盘聚焦和按下反馈继续共享同一状态语言。",
+      "**Do** 在桌面窄窗口继续检查完整菜单，并单独验证真实 XR 视野、操作和舒适度。",
+      "**Do** 将本规范限定为启动封面扩展，保留现有牌局实现的权威性。"
+    ],
+    "donts": [
+      "**Don't** 将图像标题误记为运行时字体或把整张背景误记为三维场景。",
+      "**Don't** 从桌面截图推断真机、模拟器、触觉或手部跟踪已经通过验证。",
+      "**Don't** 将启动封面的中轴构图、内置操作字体或字号推广成全局牌局的新规范。"
+    ]
+  }
+}

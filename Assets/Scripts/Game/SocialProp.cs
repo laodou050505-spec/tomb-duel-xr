@@ -76,6 +76,7 @@ namespace Guandan.Game
             {
                 foreach (var item in renderers)
                 {
+                    item.enabled = true;
                     if (item.material.HasProperty("_EmissionColor")) item.material.SetColor("_EmissionColor", Color.black);
                 }
             }
@@ -95,29 +96,33 @@ namespace Guandan.Game
         }
 
         /// <summary>Animate the prop to the target's body-facing side, then return it to the basket.</summary>
-        public void ThrowTo(Vector3 targetPosition)
+        public void ThrowTo(System.Func<Vector3> targetPosition, System.Action<Vector3> onImpact = null)
         {
             if (!liftComplete) return;
             if (liftRoutine != null) StopCoroutine(liftRoutine);
-            liftRoutine = StartCoroutine(ThrowRoutine(targetPosition));
+            liftRoutine = StartCoroutine(ThrowRoutine(targetPosition, onImpact));
         }
 
-        private IEnumerator ThrowRoutine(Vector3 targetPosition)
+        private IEnumerator ThrowRoutine(System.Func<Vector3> targetPosition, System.Action<Vector3> onImpact)
         {
             var start = transform.position;
-            var duration = 0.92f;
+            var duration = Mathf.Clamp(Vector3.Distance(start, targetPosition()) / 7f, 0.32f, 0.65f);
             for (var elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
             {
                 var progress = Mathf.Clamp01(elapsed / duration);
-                var eased = Mathf.SmoothStep(0f, 1f, progress);
-                var position = Vector3.Lerp(start, targetPosition, eased);
+                var eased = progress;
+                var position = Vector3.Lerp(start, targetPosition(), eased);
                 position.y += Mathf.Sin(progress * Mathf.PI) * 0.34f;
                 transform.position = position;
                 transform.rotation = Quaternion.Slerp(homeRotation, homeRotation * Quaternion.Euler(0f, 0f, propType == SocialPropType.Flower ? 24f : -24f), eased);
                 yield return null;
             }
-            transform.position = targetPosition;
-            yield return new WaitForSeconds(0.22f);
+            transform.position = targetPosition();
+            onImpact?.Invoke(transform.position);
+            // Hide the intact tomato at impact; the body splat now owns the visual.
+            foreach (var item in renderers) if (item != null) item.enabled = false;
+            yield return new WaitForSeconds(0.12f);
+            foreach (var item in renderers) if (item != null) item.enabled = true;
             ReturnHome();
         }
 

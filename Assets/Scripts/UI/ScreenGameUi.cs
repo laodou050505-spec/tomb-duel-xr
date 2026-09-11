@@ -11,26 +11,40 @@ using UnityEngine.UI;
 namespace Guandan.UI
 {
     /// <summary>
-    /// Camera-relative UI for the desktop fallback and PICO headset. The hand is always
-    /// anchored to the lower edge of the player's view while every command faces the player.
+    /// Hybrid XR UI for the desktop fallback and PICO headset. Cards and table controls
+    /// stay beside the authored table, while the compact score rail stays at the safe
+    /// upper edge of the headset view.
     /// </summary>
     public sealed class ScreenGameUi : MonoBehaviour
     {
         private const float CanvasWidth = 1920f;
         private const float CanvasHeight = 1080f;
-        // Keep the camera-front composition used by the original desktop build.
-        // The panel is still parented to the head camera, so it remains available in XR.
-        private static readonly Vector3 HeadsetUiOffset = new(0f, 0.08f, 1.70f);
-        private const float HeadsetUiScale = 0.00164f;
+        // Keep the original authored composition, but render it as a real world surface.
+        // UIAnchor is at the table center. Keep every flat UI surface comfortably in front
+        // of the near table rim, then lift the composition without moving the XR camera.
+        private static readonly Vector3 WorldUiOffset = new(0f, 0.89f, -1.58f);
+        private const float WorldUiScale = 0.00164f;
+        private const float HeadHudDistance = 2.0f;
+        private const float HeadHudHorizontalCoverage = 0.90f;
+        private const float HeadHudTopMarginViewport = 0.03f;
 
         private GameDirector director;
         private Canvas canvas;
+        private Canvas hudCanvas;
         private RectTransform root;
+        private RectTransform hudRoot;
+        private RectTransform scoreRailRect;
         private Camera targetCamera;
+        private Transform worldAnchor;
         private int lastReportedPhysicalCardCount = -1;
         private GameObject lotteryPanel;
         private GameObject tablePanel;
         private GameObject routePanel;
+        private GameObject matchResultPanel;
+        private RawImage matchResultArt;
+        private Text matchResultTitle;
+        private Text matchResultDetail;
+        private Texture2D victoryArt, defeatArt;
         private GameObject profilePanel;
         private GameObject variantPanel;
         private RectTransform handRoot;
@@ -97,6 +111,8 @@ namespace Guandan.UI
         private static Sprite cardFaceSprite;
         private static Sprite bombRingSprite;
         private static Sprite bombSparkSprite;
+        private UiHitTarget focusedTarget;
+        private bool spatialXrMode;
 
         public Canvas Canvas => canvas;
 
@@ -117,6 +133,7 @@ namespace Guandan.UI
         {
             director = owner;
             this.targetCamera = targetCamera != null ? targetCamera : Camera.main;
+            worldAnchor = owner != null ? owner.WorldUiAnchor : null;
             EnsureCanvas(targetCamera);
             if (!built) Build();
             Refresh();
@@ -124,9 +141,6 @@ namespace Guandan.UI
 
         private void LateUpdate()
         {
-            // GameDirector can awake before the XR rig has tagged its head camera as MainCamera.
-            // Keep this flat HUD hidden until a head camera exists; it must never render at
-            // world origin or become a row of apparent cards sitting on the physical table.
             if (canvas == null) return;
             if (targetCamera == null) targetCamera = ResolveTargetCamera();
             if (targetCamera == null)
@@ -134,8 +148,17 @@ namespace Guandan.UI
                 if (canvas.gameObject.activeSelf) canvas.gameObject.SetActive(false);
                 return;
             }
-            if (canvas.transform.parent != targetCamera.transform || !canvas.gameObject.activeSelf)
-                AttachToCamera(targetCamera);
+            if (worldAnchor == null && director != null) worldAnchor = director.WorldUiAnchor;
+            if (!spatialXrMode && UnityEngine.XR.XRSettings.enabled && UnityEngine.XR.XRSettings.isDeviceActive)
+            {
+                spatialXrMode = true;
+                // XR can become active after the first UI refresh. Recompose once so
+                // redundant desktop-only seat labels disappear as soon as PICO takes over.
+                Refresh();
+            }
+            if (!canvas.gameObject.activeSelf) canvas.gameObject.SetActive(true);
+            UpdateWorldCanvasPose();
+            UpdateHeadHudPose();
         }
 
         private void Start()
@@ -197,6 +220,9 @@ namespace Guandan.UI
         /// </summary>
         public bool TryHandleScreenPress(Vector2 screenPosition, PointerSource source)
         {
+            // Screen coordinates are not a valid hit-test for a room-fixed panel once the
+            // HMD can turn independently. Controllers/hands use the physical colliders.
+            if (spatialXrMode) return false;
             if (canvas == null || !canvas.gameObject.activeInHierarchy) return false;
             var eventSystem = EventSystem.current ?? FindFirstObjectByType<EventSystem>();
             var raycaster = canvas.GetComponent<GraphicRaycaster>();
@@ -219,6 +245,18 @@ namespace Guandan.UI
             return false;
         }
 
+        /// <summary>
+        /// Keeps the pointed object itself legible. A separate text banner obscured the
+        /// table and duplicated the controller ray, so focus is now shown only in-place.
+        /// </summary>
+        public void PreviewTarget(UiHitTarget target)
+        {
+            if (focusedTarget == target) return;
+            if (focusedTarget != null) focusedTarget.SetFocused(false);
+            focusedTarget = target;
+            if (focusedTarget != null) focusedTarget.SetFocused(true);
+        }
+
         public void Refresh()
         {
             if (!built || director == null) return;
@@ -226,6 +264,7 @@ namespace Guandan.UI
             lotteryPanel.SetActive(!director.LotteryChosen);
             tablePanel.SetActive(director.LotteryChosen && !director.RaceOpen);
             routePanel.SetActive(director.RaceOpen);
+            if (matchResultPanel != null && !director.RaceOpen) matchResultPanel.SetActive(false);
             if (director.RaceOpen)
             {
                 profilePanel.SetActive(false);
@@ -248,6 +287,7 @@ namespace Guandan.UI
             }
 
             if (match == null) return;
+            UpdateWorldCanvasPose();
             titleText.text = $"掼蛋夺宝 · 第 {match.HandNumber} 小局";
             blueLevelText.text = $"青队 · 打 {GuandanMatchEngine.RankLabel(match.GetTeamLevel(0))}";
             redLevelText.text = $"朱队 · 打 {GuandanMatchEngine.RankLabel(match.GetTeamLevel(1))}";
@@ -343,7 +383,7 @@ namespace Guandan.UI
             if (canvas != null) return;
             targetCamera ??= this.targetCamera != null ? this.targetCamera : Camera.main;
             this.targetCamera = targetCamera;
-            var existing = targetCamera != null ? targetCamera.transform.Find("Screen UI · 始终面向玩家") : null;
+            var existing = worldAnchor != null ? worldAnchor.Find("World Table UI · 世界空间") : null;
             if (existing != null && existing.GetComponent<RectTransform>() == null)
             {
                 Destroy(existing.gameObject);
@@ -352,7 +392,7 @@ namespace Guandan.UI
             var go = existing != null
                 ? existing.gameObject
                 : new GameObject(
-                    "Screen UI · 始终面向玩家",
+                    "World Table UI · 世界空间",
                     typeof(RectTransform),
                     typeof(Canvas),
                     typeof(CanvasScaler));
@@ -360,6 +400,7 @@ namespace Guandan.UI
             canvas = go.GetComponent<Canvas>();
             canvas.enabled = true;
             canvas.renderMode = RenderMode.WorldSpace;
+            spatialXrMode = UnityEngine.XR.XRSettings.enabled && UnityEngine.XR.XRSettings.isDeviceActive;
             canvas.sortingOrder = 100;
             var raycaster = go.GetComponent<GraphicRaycaster>() ?? go.AddComponent<GraphicRaycaster>();
             // This canvas is parented in front of the head camera with identity rotation,
@@ -373,7 +414,8 @@ namespace Guandan.UI
             var rect = go.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(CanvasWidth, CanvasHeight);
             root = rect;
-            if (targetCamera != null) AttachToCamera(targetCamera);
+            UpdateWorldCanvasPose();
+            EnsureHeadHudCanvas(targetCamera);
 
             // The project uses Input System-only.  An EventSystem by itself can draw and
             // raycast a button but cannot turn Android/PICO pointer input into Button.onClick.
@@ -395,14 +437,89 @@ namespace Guandan.UI
         {
             if (camera == null || canvas == null) return;
             targetCamera = camera;
-            var transform = canvas.transform;
-            if (transform.parent != camera.transform) transform.SetParent(camera.transform, false);
             canvas.worldCamera = camera;
-            // The UI stays flat, head-relative and visibly separate from the tomb models.
-            transform.localPosition = HeadsetUiOffset;
-            transform.localRotation = Quaternion.identity;
-            transform.localScale = Vector3.one * HeadsetUiScale;
+            if (hudCanvas != null) hudCanvas.worldCamera = camera;
+            UpdateWorldCanvasPose();
+            UpdateHeadHudPose();
             if (!canvas.gameObject.activeSelf) canvas.gameObject.SetActive(true);
+        }
+
+        private void EnsureHeadHudCanvas(Camera camera)
+        {
+            if (hudCanvas != null) return;
+            var go = new GameObject(
+                "Head HUD · 顶部战况",
+                typeof(RectTransform),
+                typeof(Canvas),
+                typeof(CanvasScaler));
+            hudCanvas = go.GetComponent<Canvas>();
+            hudCanvas.enabled = true;
+            hudCanvas.renderMode = RenderMode.WorldSpace;
+            hudCanvas.sortingOrder = 120;
+            hudCanvas.worldCamera = camera;
+            var raycaster = go.AddComponent<GraphicRaycaster>();
+            raycaster.ignoreReversedGraphics = false;
+            var scaler = go.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = 1f;
+            scaler.referencePixelsPerUnit = 100f;
+            hudRoot = go.GetComponent<RectTransform>();
+            hudRoot.sizeDelta = new Vector2(CanvasWidth, CanvasHeight);
+            UpdateHeadHudPose();
+        }
+
+        private void UpdateHeadHudPose()
+        {
+            if (hudCanvas == null || targetCamera == null) return;
+            var hudTransform = hudCanvas.transform;
+            if (hudTransform.parent != targetCamera.transform)
+                hudTransform.SetParent(targetCamera.transform, false);
+
+            // Fit the score rail to the actual headset frustum instead of treating the
+            // camera-front world canvas as a 1080p screen. This keeps the rail against the
+            // visible upper edge across PICO FOV/aspect changes while retaining a safe gap.
+            var verticalFov = Mathf.Clamp(targetCamera.fieldOfView, 40f, 120f);
+            var aspect = targetCamera.aspect > 0.1f ? targetCamera.aspect : 1f;
+            var halfVisibleHeight = HeadHudDistance * Mathf.Tan(verticalFov * 0.5f * Mathf.Deg2Rad);
+            var visibleWidth = halfVisibleHeight * 2f * aspect;
+            var railWidth = scoreRailRect != null ? scoreRailRect.sizeDelta.x : 1740f;
+            var railTop = scoreRailRect != null
+                ? scoreRailRect.anchoredPosition.y + scoreRailRect.sizeDelta.y * 0.5f
+                : 512f;
+            var scale = visibleWidth * HeadHudHorizontalCoverage / Mathf.Max(1f, railWidth);
+            var safeTop = halfVisibleHeight * (1f - HeadHudTopMarginViewport * 2f);
+
+            hudTransform.localPosition = new Vector3(0f, safeTop - railTop * scale, HeadHudDistance);
+            hudTransform.localRotation = Quaternion.identity;
+            hudTransform.localScale = Vector3.one * scale;
+            hudCanvas.worldCamera = targetCamera;
+            if (!hudCanvas.gameObject.activeSelf) hudCanvas.gameObject.SetActive(true);
+        }
+
+        private void UpdateWorldCanvasPose()
+        {
+            if (canvas == null) return;
+            if (worldAnchor == null && director != null) worldAnchor = director.WorldUiAnchor;
+            if (worldAnchor == null) return;
+            var canvasTransform = canvas.transform;
+            if (canvasTransform.parent != worldAnchor) canvasTransform.SetParent(worldAnchor, false);
+            canvasTransform.localPosition = WorldUiOffset;
+            if (director != null && director.TreasureViewActive)
+                canvasTransform.position = new Vector3(0f, 2.18f, 21.25f);
+            canvasTransform.localScale = Vector3.one * WorldUiScale;
+
+            // The table UI is a fixed spatial surface. Turn it only around the vertical
+            // axis toward the player so its readable face stays visible without following
+            // head yaw, pitch, or roll like a camera HUD.
+            if (targetCamera != null)
+            {
+                var toCamera = targetCamera.transform.position - canvasTransform.position;
+                toCamera.y = 0f;
+                if (toCamera.sqrMagnitude > 0.0001f)
+                    canvasTransform.rotation = Quaternion.LookRotation(toCamera.normalized, Vector3.up)
+                        * Quaternion.Euler(0f, 180f, 0f);
+            }
+            canvas.worldCamera = targetCamera;
         }
 
         private static Camera ResolveTargetCamera()
@@ -420,13 +537,15 @@ namespace Guandan.UI
             scoreRailCapLeftSprite ??= LoadSpriteResource("GuandanUI/ScoreRailCapLeft");
             scoreRailCapRightSprite ??= LoadSpriteResource("GuandanUI/ScoreRailCapRight");
             cardFaceSprite ??= LoadSpriteResource("GuandanUI/CardFace");
-            var backdrop = CreatePanel("UIBackdrop", root, new Vector2(0f, 0f), new Vector2(CanvasWidth, CanvasHeight), new Color(0.015f, 0.025f, 0.025f, 0.05f));
+            var backdrop = CreatePanel("UIBackdrop", root, new Vector2(0f, 0f), new Vector2(CanvasWidth, CanvasHeight), Color.clear);
+            backdrop.GetComponent<Image>().raycastTarget = false;
             backdrop.transform.SetAsFirstSibling();
 
-            // Compose the rail from fixed-size decorative caps and a plain center band;
-            // only the empty information area grows with the world-space HUD width.
-            var header = CreatePanel("ScoreRail", root, new Vector2(0f, 454f), new Vector2(1872f, 148f), new Color(0.018f, 0.028f, 0.027f, 0.82f));
+            // Keep the rail inside a deliberate headset safe area: 90 px on the sides and
+            // 28 px above. It lives on the head HUD, while cards remain fixed at the table.
+            var header = CreatePanel("ScoreRail", hudRoot, new Vector2(0f, 446f), new Vector2(1740f, 132f), new Color(0.018f, 0.028f, 0.027f, 0.82f));
             var headerRect = header.transform as RectTransform;
+            scoreRailRect = headerRect;
             var headerImage = header.GetComponent<Image>();
             headerImage.color = new Color(0.018f, 0.028f, 0.027f, 0.96f);
             headerImage.raycastTarget = false;
@@ -435,68 +554,80 @@ namespace Guandan.UI
             headerOutline.effectDistance = new Vector2(2f, -2f);
             CreateHeaderRule(headerRect, new Vector2(0f, 59f));
             CreateHeaderRule(headerRect, new Vector2(0f, -59f));
-            CreateHeaderCap(headerRect, "ScoreCapLeft", scoreRailCapLeftSprite, new Vector2(-842f, 0f));
-            CreateHeaderCap(headerRect, "ScoreCapRight", scoreRailCapRightSprite, new Vector2(842f, 0f));
-            var seal = CreatePanel("ScoreRailSeal", headerRect, Vector2.zero, new Vector2(46f, 38f), new Color(0.50f, 0.12f, 0.07f, 0.96f));
+            CreateHeaderCap(headerRect, "ScoreCapLeft", scoreRailCapLeftSprite, new Vector2(-820f, 0f));
+            CreateHeaderCap(headerRect, "ScoreCapRight", scoreRailCapRightSprite, new Vector2(820f, 0f));
+            var seal = CreatePanel("ScoreRailSeal", headerRect, Vector2.zero, new Vector2(58f, 48f), new Color(0.50f, 0.12f, 0.07f, 0.96f));
             seal.GetComponent<Image>().raycastTarget = false;
             var sealOutline = seal.AddComponent<Outline>();
             sealOutline.effectColor = new Color(0.78f, 0.58f, 0.28f, 0.92f);
             sealOutline.effectDistance = new Vector2(1f, -1f);
-            titleText = CreateText("Title", "掼蛋夺宝", headerRect, new Vector2(-786f, 13f), 25, TextAnchor.MiddleLeft, new Color(0.94f, 0.88f, 0.68f));
-            titleText.rectTransform.sizeDelta = new Vector2(330f, 54f);
-            blueLevelText = CreateText("BlueLevel", "青队 · 打 2", headerRect, new Vector2(-440f, 24f), 19, TextAnchor.MiddleCenter, new Color(0.48f, 0.78f, 0.68f));
-            redLevelText = CreateText("RedLevel", "朱队 · 打 2", headerRect, new Vector2(440f, 24f), 19, TextAnchor.MiddleCenter, new Color(0.88f, 0.46f, 0.36f));
-            headerBlueCells = CreateHeaderTrack("HeaderBlue", headerRect, new Vector2(-440f, -18f), new Color(0.20f, 0.66f, 0.58f));
-            headerRedCells = CreateHeaderTrack("HeaderRed", headerRect, new Vector2(440f, -18f), new Color(0.78f, 0.24f, 0.16f));
-            bluePositionText = CreateText("BluePosition", $"0 / {TreasureRace.TrackLength}", headerRect, new Vector2(-440f, -43f), 14, TextAnchor.MiddleCenter, new Color(0.75f, 0.82f, 0.75f));
-            redPositionText = CreateText("RedPosition", $"0 / {TreasureRace.TrackLength}", headerRect, new Vector2(440f, -43f), 14, TextAnchor.MiddleCenter, new Color(0.82f, 0.76f, 0.70f));
-            progressText = CreateText("Progress", "等待开局", headerRect, new Vector2(0f, 3f), 21, TextAnchor.MiddleCenter, new Color(0.94f, 0.80f, 0.46f));
-            progressText.rectTransform.sizeDelta = new Vector2(250f, 62f);
-            turnText = CreateText("Turn", "", root, new Vector2(0f, 391f), 21, TextAnchor.MiddleCenter, new Color(0.82f, 0.90f, 0.82f));
-            turnText.rectTransform.sizeDelta = new Vector2(820f, 44f);
-            messageText = CreateText("Message", "", root, new Vector2(0f, 346f), 18, TextAnchor.MiddleCenter, new Color(0.96f, 0.86f, 0.66f));
-            messageText.rectTransform.sizeDelta = new Vector2(1120f, 36f);
-            CreateButton("Sound", new Vector2(878f, 474f), new Vector2(116f, 62f), "声音", new Color(0.15f, 0.22f, 0.20f), UiHitKind.Action, -1, "sound");
+            titleText = CreateText("Title", "掼蛋夺宝", headerRect, new Vector2(-620f, 28f), 22, TextAnchor.MiddleLeft, new Color(0.94f, 0.88f, 0.68f));
+            titleText.rectTransform.sizeDelta = new Vector2(240f, 38f);
+            blueLevelText = CreateText("BlueLevel", "青队 · 打 2", headerRect, new Vector2(-330f, 30f), 25, TextAnchor.MiddleCenter, new Color(0.48f, 0.78f, 0.68f));
+            redLevelText = CreateText("RedLevel", "朱队 · 打 2", headerRect, new Vector2(330f, 30f), 25, TextAnchor.MiddleCenter, new Color(0.88f, 0.46f, 0.36f));
+            headerBlueCells = CreateHeaderTrack("HeaderBlue", headerRect, new Vector2(-330f, -4f), new Color(0.20f, 0.66f, 0.58f));
+            headerRedCells = CreateHeaderTrack("HeaderRed", headerRect, new Vector2(330f, -4f), new Color(0.78f, 0.24f, 0.16f));
+            bluePositionText = CreateText("BluePosition", $"0 / {TreasureRace.TrackLength}", headerRect, new Vector2(-330f, -39f), 19, TextAnchor.MiddleCenter, new Color(0.75f, 0.82f, 0.75f));
+            redPositionText = CreateText("RedPosition", $"0 / {TreasureRace.TrackLength}", headerRect, new Vector2(330f, -39f), 19, TextAnchor.MiddleCenter, new Color(0.82f, 0.76f, 0.70f));
+            progressText = CreateText("Progress", "等待开局", headerRect, new Vector2(0f, 4f), 28, TextAnchor.MiddleCenter, new Color(0.94f, 0.80f, 0.46f));
+            progressText.rectTransform.sizeDelta = new Vector2(230f, 62f);
+            blueLevelText.rectTransform.sizeDelta = redLevelText.rectTransform.sizeDelta = new Vector2(260f, 34f);
+            bluePositionText.rectTransform.sizeDelta = redPositionText.rectTransform.sizeDelta = new Vector2(260f, 28f);
+            turnText = CreateText("Turn", "", headerRect, new Vector2(620f, -28f), 18, TextAnchor.MiddleCenter, new Color(0.82f, 0.90f, 0.82f));
+            turnText.rectTransform.sizeDelta = new Vector2(240f, 40f);
+            messageText = CreateText("Message", "", headerRect, new Vector2(-620f, -28f), 17, TextAnchor.MiddleCenter, new Color(0.96f, 0.86f, 0.66f));
+            messageText.rectTransform.sizeDelta = new Vector2(240f, 40f);
+            CreateButton("Sound", new Vector2(620f, 476f), new Vector2(130f, 48f), "声音", new Color(0.15f, 0.22f, 0.20f), UiHitKind.Action, -1, "sound");
+            UpdateHeadHudPose();
 
-            lotteryPanel = CreatePanel("LotteryPanel", root, new Vector2(0f, 30f), new Vector2(1120f, 570f), new Color(0.04f, 0.055f, 0.05f, 0.94f));
+            lotteryPanel = CreatePanel("LotteryPanel", root, new Vector2(0f, -26f), new Vector2(1360f, 660f), new Color(0.04f, 0.055f, 0.05f, 0.94f));
             ApplySkin(lotteryPanel.GetComponent<Image>(), tombPanelSprite, Color.white);
-            CreateText("LotteryPrompt", "先抽同行人", lotteryPanel.transform as RectTransform, new Vector2(0f, 218f), 32, TextAnchor.MiddleCenter, new Color(0.94f, 0.80f, 0.46f));
-            CreateText("LotteryHint", "三支身份签中，一支成为队友，其余两支成为对手", lotteryPanel.transform as RectTransform, new Vector2(0f, 171f), 17, TextAnchor.MiddleCenter, new Color(0.80f, 0.82f, 0.74f));
+            var lotteryPrompt = CreateText("LotteryPrompt", "先抽同行人", lotteryPanel.transform as RectTransform, new Vector2(0f, 258f), 40, TextAnchor.MiddleCenter, new Color(0.94f, 0.80f, 0.46f));
+            lotteryPrompt.rectTransform.sizeDelta = new Vector2(900f, 60f);
+            var lotteryHint = CreateText("LotteryHint", "三支身份签中，一支成为队友，其余两支成为对手", lotteryPanel.transform as RectTransform, new Vector2(0f, 204f), 22, TextAnchor.MiddleCenter, new Color(0.80f, 0.82f, 0.74f));
+            lotteryHint.rectTransform.sizeDelta = new Vector2(1120f, 44f);
             lotteryButtons = new Button[3];
             for (var i = 0; i < lotteryButtons.Length; i++)
             {
-                var button = CreateButton($"Lot_{i}", new Vector2(-260f + i * 260f, -12f), new Vector2(188f, 304f), director.GetLotteryLotText(i), Color.white, UiHitKind.Lottery, i, null);
+                var button = CreateButton($"Lot_{i}", new Vector2(-315f + i * 315f, -18f), new Vector2(226f, 360f), director.GetLotteryLotText(i), Color.white, UiHitKind.Lottery, i, null);
                 StyleLotteryCard(button, i);
                 lotteryButtons[i] = button;
             }
-            lotteryResultText = CreateText("LotteryResult", "选择一支竹签", lotteryPanel.transform as RectTransform, new Vector2(0f, -220f), 18, TextAnchor.MiddleCenter, new Color(0.92f, 0.82f, 0.57f));
-            lotteryResultText.rectTransform.sizeDelta = new Vector2(960f, 58f);
+            lotteryResultText = CreateText("LotteryResult", "选择一支竹签", lotteryPanel.transform as RectTransform, new Vector2(0f, -274f), 23, TextAnchor.MiddleCenter, new Color(0.92f, 0.82f, 0.57f));
+            lotteryResultText.rectTransform.sizeDelta = new Vector2(1160f, 64f);
 
             tablePanel = new GameObject("TablePanel");
             tablePanel.transform.SetParent(root, false);
             var tableRect = tablePanel.AddComponent<RectTransform>();
             tableRect.sizeDelta = new Vector2(CanvasWidth, CanvasHeight);
 
-            tablePlayNorth = CreateText("PlayNorth", "", tableRect, new Vector2(0f, 226f), 21, TextAnchor.MiddleCenter, Color.white);
-            tablePlayEast = CreateText("PlayEast", "", tableRect, new Vector2(650f, 100f), 21, TextAnchor.MiddleCenter, Color.white);
-            tablePlaySouth = CreateText("PlaySouth", "", tableRect, new Vector2(0f, -76f), 21, TextAnchor.MiddleCenter, Color.white);
-            tablePlayWest = CreateText("PlayWest", "", tableRect, new Vector2(-650f, 100f), 21, TextAnchor.MiddleCenter, Color.white);
-            tablePlayNorth.rectTransform.sizeDelta = new Vector2(640f, 38f);
-            tablePlayEast.rectTransform.sizeDelta = new Vector2(560f, 38f);
+            tablePlayNorth = CreateText("PlayNorth", "", tableRect, new Vector2(0f, 260f), 29, TextAnchor.MiddleCenter, Color.white);
+            tablePlayEast = CreateText("PlayEast", "", tableRect, new Vector2(650f, 124f), 29, TextAnchor.MiddleCenter, Color.white);
+            tablePlaySouth = CreateText("PlaySouth", "", tableRect, new Vector2(0f, 81f), 21, TextAnchor.MiddleCenter, Color.white);
+            tablePlayWest = CreateText("PlayWest", "", tableRect, new Vector2(-650f, 124f), 29, TextAnchor.MiddleCenter, Color.white);
+            tablePlayNorth.rectTransform.sizeDelta = new Vector2(760f, 46f);
+            tablePlayEast.rectTransform.sizeDelta = new Vector2(620f, 46f);
             tablePlaySouth.rectTransform.sizeDelta = new Vector2(640f, 38f);
-            tablePlayWest.rectTransform.sizeDelta = new Vector2(560f, 38f);
-            playCardsNorth = CreateRect("PlayCardsNorth", tableRect, new Vector2(0f, 166f), new Vector2(640f, 96f));
-            playCardsEast = CreateRect("PlayCardsEast", tableRect, new Vector2(650f, 42f), new Vector2(560f, 96f));
-            playCardsSouth = CreateRect("PlayCardsSouth", tableRect, new Vector2(0f, -136f), new Vector2(640f, 96f));
-            playCardsWest = CreateRect("PlayCardsWest", tableRect, new Vector2(-650f, 42f), new Vector2(560f, 96f));
-            handInfoText = CreateText("HandInfo", "", tableRect, new Vector2(-758f, -190f), 18, TextAnchor.MiddleLeft, new Color(0.85f, 0.85f, 0.76f));
-            handInfoText.rectTransform.sizeDelta = new Vector2(520f, 48f);
-            selectionText = CreateText("Selection", "", tableRect, new Vector2(758f, -190f), 18, TextAnchor.MiddleRight, new Color(0.85f, 0.85f, 0.76f));
-            selectionText.rectTransform.sizeDelta = new Vector2(650f, 48f);
-            handRoot = CreateRect("HandRoot", tableRect, new Vector2(0f, -330f), new Vector2(1740f, 270f));
+            tablePlayWest.rectTransform.sizeDelta = new Vector2(620f, 46f);
+            playCardsNorth = CreateRect("PlayCardsNorth", tableRect, new Vector2(0f, 120f), new Vector2(760f, 164f));
+            playCardsEast = CreateRect("PlayCardsEast", tableRect, new Vector2(650f, 30f), new Vector2(620f, 164f));
+            playCardsSouth = CreateRect("PlayCardsSouth", tableRect, new Vector2(0f, -24f), new Vector2(640f, 82f));
+            playCardsWest = CreateRect("PlayCardsWest", tableRect, new Vector2(-650f, 30f), new Vector2(620f, 164f));
+            handInfoText = CreateText("HandInfo", "", tableRect, new Vector2(-402f, -468f), 24, TextAnchor.MiddleRight, new Color(0.95f, 0.92f, 0.80f));
+            handInfoText.rectTransform.sizeDelta = new Vector2(300f, 64f);
+            selectionText = CreateText("Selection", "", tableRect, new Vector2(472f, -468f), 24, TextAnchor.MiddleLeft, new Color(0.95f, 0.92f, 0.80f));
+            selectionText.rectTransform.sizeDelta = new Vector2(440f, 64f);
+            foreach (var status in new[] { handInfoText, selectionText })
+            {
+                status.resizeTextForBestFit = false;
+                var shadow = status.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0.03f, 0.02f, 0.01f, 0.95f);
+                shadow.effectDistance = new Vector2(2f, -2f);
+            }
+            handRoot = CreateRect("HandRoot", tableRect, new Vector2(0f, -280f), new Vector2(1740f, 300f));
             handRoot.SetAsLastSibling();
-            passButtonUi = CreateButton("Pass", new Vector2(-105f, -490f), new Vector2(190f, 82f), "过牌", new Color(0.18f, 0.34f, 0.31f), UiHitKind.Action, -1, "pass");
-            playButtonUi = CreateButton("Play", new Vector2(105f, -490f), new Vector2(190f, 82f), "出牌", new Color(0.62f, 0.20f, 0.12f), UiHitKind.Action, -1, "play");
+            passButtonUi = CreateButton("Pass", new Vector2(-118f, -468f), new Vector2(212f, 88f), "过牌", new Color(0.18f, 0.34f, 0.31f), UiHitKind.Action, -1, "pass");
+            playButtonUi = CreateButton("Play", new Vector2(118f, -468f), new Vector2(212f, 88f), "出牌", new Color(0.62f, 0.20f, 0.12f), UiHitKind.Action, -1, "play");
 
             profileNorthUi = CreateButton("ProfileNorth", new Vector2(0f, 286f), new Vector2(278f, 120f), "北家", new Color(0.12f, 0.20f, 0.18f), UiHitKind.Profile, 2, null);
             profileEastUi = CreateButton("ProfileEast", new Vector2(770f, 184f), new Vector2(255f, 110f), "东家", new Color(0.17f, 0.13f, 0.13f), UiHitKind.Profile, 1, null);
@@ -504,36 +635,45 @@ namespace Guandan.UI
             turnCalloutNorth = CreateText("TurnNorth", "", tableRect, new Vector2(-390f, 296f), 18, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.48f));
             turnCalloutEast = CreateText("TurnEast", "", tableRect, new Vector2(770f, 108f), 18, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.48f));
             turnCalloutWest = CreateText("TurnWest", "", tableRect, new Vector2(-770f, 108f), 18, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.48f));
-            turnCalloutSouth = CreateText("TurnSouth", "", tableRect, new Vector2(0f, -178f), 18, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.48f));
+            turnCalloutSouth = CreateText("TurnSouth", "", tableRect, new Vector2(0f, -96f), 18, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.48f));
             turnCalloutNorth.rectTransform.sizeDelta = new Vector2(320f, 38f);
             turnCalloutEast.rectTransform.sizeDelta = new Vector2(300f, 38f);
             turnCalloutWest.rectTransform.sizeDelta = new Vector2(300f, 38f);
             turnCalloutSouth.rectTransform.sizeDelta = new Vector2(300f, 38f);
 
-            levelAnnouncementPanel = CreatePanel("LevelAnnouncement", tableRect, new Vector2(0f, 32f), new Vector2(660f, 230f), new Color(0.07f, 0.08f, 0.065f, 0.96f));
+            levelAnnouncementPanel = CreatePanel("LevelAnnouncement", tableRect, new Vector2(0f, 32f), new Vector2(780f, 270f), new Color(0.07f, 0.08f, 0.065f, 0.96f));
             ApplySkin(levelAnnouncementPanel.GetComponent<Image>(), tombPanelSprite, Color.white);
-            levelAnnouncementText = CreateText("LevelAnnouncementText", "", levelAnnouncementPanel.transform, Vector2.zero, 31, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.48f));
-            levelAnnouncementText.rectTransform.sizeDelta = new Vector2(620f, 190f);
+            levelAnnouncementText = CreateText("LevelAnnouncementText", "", levelAnnouncementPanel.transform, Vector2.zero, 38, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.48f));
+            levelAnnouncementText.rectTransform.sizeDelta = new Vector2(730f, 218f);
 
-            routePanel = CreatePanel("RoutePanel", root, new Vector2(0f, -366f), new Vector2(1880f, 250f), new Color(0.045f, 0.055f, 0.05f, 0.0f));
+            routePanel = CreatePanel("RoutePanel", root, new Vector2(0f, 20f), new Vector2(1880f, 700f), new Color(0.045f, 0.055f, 0.05f, 0.0f));
             // Treasure information now lives on the two authored flags. This layer is a
             // transparent command rail at the bottom of the view, so it never masks the
             // room, chest, artifacts, or moving pieces.
             var routeImage = routePanel.GetComponent<Image>();
             ApplySkin(routeImage, tombPanelSprite, Color.white);
             routeImage.color = new Color(1f, 1f, 1f, 0f);
-            routeTitleText = CreateText("RouteTitle", "选择发掘路线", routePanel.transform as RectTransform, new Vector2(0f, 102f), 24, TextAnchor.MiddleCenter, new Color(0.94f, 0.80f, 0.46f));
-            routeSummaryText = CreateText("RouteSummary", "", routePanel.transform as RectTransform, new Vector2(0f, 73f), 15, TextAnchor.MiddleCenter, new Color(0.85f, 0.84f, 0.75f));
-            routeAdviceText = CreateText("RouteAdvice", "", routePanel.transform as RectTransform, new Vector2(0f, 46f), 14, TextAnchor.MiddleCenter, new Color(0.76f, 0.84f, 0.76f));
-            blueRouteCells = CreateRouteTrack("BlueRoute", routePanel.transform, new Vector2(-310f, 12f), new Color(0.20f, 0.66f, 0.58f));
-            redRouteCells = CreateRouteTrack("RedRoute", routePanel.transform, new Vector2(310f, 12f), new Color(0.78f, 0.24f, 0.16f));
-            enterTreasureButtonUi = CreateButton("EnterTreasure", new Vector2(0f, -30f), new Vector2(280f, 52f), "进入夺宝场景", new Color(0.70f, 0.42f, 0.16f), UiHitKind.Action, -1, "enter-treasure");
-            steadyButtonUi = CreateButton("Steady", new Vector2(-180f, -89f), new Vector2(280f, 56f), "稳当推进", new Color(0.22f, 0.38f, 0.32f), UiHitKind.Action, -1, "steady");
-            riskyButtonUi = CreateButton("Risky", new Vector2(180f, -89f), new Vector2(280f, 56f), "深入探方", new Color(0.43f, 0.22f, 0.16f), UiHitKind.Action, -1, "risky");
-            routeResultText = CreateText("RouteResult", "", routePanel.transform as RectTransform, new Vector2(0f, -145f), 18, TextAnchor.MiddleCenter, new Color(0.96f, 0.82f, 0.50f));
-            routeResultText.rectTransform.sizeDelta = new Vector2(980f, 82f);
-            continueButtonUi = CreateButton("Continue", new Vector2(0f, -224f), new Vector2(280f, 58f), "继续下一局", new Color(0.18f, 0.28f, 0.25f), UiHitKind.Action, -1, "continue");
-            restartButtonUi = CreateButton("Restart", new Vector2(0f, -224f), new Vector2(240f, 58f), "重新抽签", new Color(0.34f, 0.21f, 0.13f), UiHitKind.Action, -1, "restart");
+            routeTitleText = CreateText("RouteTitle", "选择发掘路线", routePanel.transform as RectTransform, new Vector2(0f, 232f), 52, TextAnchor.MiddleCenter, new Color(0.98f, 0.86f, 0.55f));
+            routeTitleText.fontStyle = FontStyle.Bold;
+            routeSummaryText = CreateText("RouteSummary", "", routePanel.transform as RectTransform, new Vector2(0f, 164f), 32, TextAnchor.MiddleCenter, new Color(0.96f, 0.93f, 0.83f));
+            routeAdviceText = CreateText("RouteAdvice", "", routePanel.transform as RectTransform, new Vector2(0f, 108f), 30, TextAnchor.MiddleCenter, new Color(0.87f, 0.94f, 0.85f));
+            blueRouteCells = CreateRouteTrack("BlueRoute", routePanel.transform, new Vector2(-405f, 42f), new Color(0.20f, 0.66f, 0.58f));
+            redRouteCells = CreateRouteTrack("RedRoute", routePanel.transform, new Vector2(405f, 42f), new Color(0.78f, 0.24f, 0.16f));
+            enterTreasureButtonUi = CreateButton("EnterTreasure", new Vector2(0f, -44f), new Vector2(440f, 88f), "进入夺宝场景", new Color(0.70f, 0.42f, 0.16f), UiHitKind.Action, -1, "enter-treasure");
+            steadyButtonUi = CreateButton("Steady", new Vector2(-340f, -104f), new Vector2(620f, 136f), "稳当推进", new Color(0.22f, 0.38f, 0.32f), UiHitKind.Action, -1, "steady");
+            riskyButtonUi = CreateButton("Risky", new Vector2(340f, -104f), new Vector2(620f, 136f), "深入探方", new Color(0.43f, 0.22f, 0.16f), UiHitKind.Action, -1, "risky");
+            routeResultText = CreateText("RouteResult", "", routePanel.transform as RectTransform, new Vector2(0f, -226f), 34, TextAnchor.MiddleCenter, new Color(0.98f, 0.86f, 0.55f));
+            routeResultText.rectTransform.sizeDelta = new Vector2(1320f, 100f);
+            continueButtonUi = CreateButton("Continue", new Vector2(0f, -324f), new Vector2(500f, 104f), "返回牌桌 · 下一局", new Color(0.18f, 0.28f, 0.25f), UiHitKind.Action, -1, "continue");
+            restartButtonUi = CreateButton("Restart", new Vector2(0f, -324f), new Vector2(460f, 104f), "重新抽签", new Color(0.34f, 0.21f, 0.13f), UiHitKind.Action, -1, "restart");
+            BuildMatchResultPanel();
+            foreach (var text in new[] { routeTitleText, routeSummaryText, routeAdviceText, routeResultText })
+            {
+                text.rectTransform.sizeDelta = new Vector2(1720f, text == routeTitleText ? 72f : 64f);
+                var shadow = text.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0.04f, 0.025f, 0.01f, 0.95f);
+                shadow.effectDistance = new Vector2(2f, -3f);
+            }
 
             profilePanel = CreatePanel("ProfilePanel", root, new Vector2(0f, 15f), new Vector2(760f, 640f), new Color(0.04f, 0.055f, 0.05f, 0.98f));
             ApplySkin(profilePanel.GetComponent<Image>(), tombPanelSprite, Color.white);
@@ -549,6 +689,7 @@ namespace Guandan.UI
             profileBodyText.rectTransform.sizeDelta = new Vector2(600f, 104f);
             profileTraitsText.rectTransform.sizeDelta = new Vector2(600f, 72f);
             profileReactionText.rectTransform.sizeDelta = new Vector2(600f, 72f);
+
             CreateButton("ProfileClose", new Vector2(0f, -240f), new Vector2(220f, 58f), "关闭人物资料", new Color(0.20f, 0.24f, 0.22f), UiHitKind.CloseProfile);
 
             variantPanel = CreatePanel("VariantPanel", root, new Vector2(0f, 25f), new Vector2(760f, 620f), new Color(0.04f, 0.055f, 0.05f, 0.98f));
@@ -639,8 +780,9 @@ namespace Guandan.UI
                 selectionText.text = match.Phase == MatchPhase.Playing && match.ActiveSeat == PlayerSeat.South ? "请选择要出的牌" : "等待其他牌手";
         }
 
-        private const float HandCardWidth = 90f;
-        private const float HandCardStep = 102f;
+        private const float HandCardWidth = 96f;
+        private const float HandCardHeight = 138f;
+        private const float HandCardStep = 106f;
 
         private int MaxSingleRowCards()
         {
@@ -674,6 +816,7 @@ namespace Guandan.UI
                 _ => string.Empty,
             };
             if (string.IsNullOrEmpty(value)) return;
+            if (match.ActiveSeat != PlayerSeat.South) return; // AI status belongs to its seat plaque.
             switch (match.ActiveSeat)
             {
                 case PlayerSeat.South: turnCalloutSouth.text = value; break;
@@ -681,6 +824,54 @@ namespace Guandan.UI
                 case PlayerSeat.North: turnCalloutNorth.text = value; break;
                 case PlayerSeat.West: turnCalloutWest.text = value; break;
             }
+        }
+
+        public void BindSeatPlayedCards(PlayerSeat seat, RectTransform destination)
+        {
+            RectTransform previous = seat switch
+            {
+                PlayerSeat.North => playCardsNorth,
+                PlayerSeat.East => playCardsEast,
+                PlayerSeat.West => playCardsWest,
+                _ => null,
+            };
+            if (previous != null && previous != destination) previous.gameObject.SetActive(false);
+            switch (seat)
+            {
+                case PlayerSeat.North: playCardsNorth = destination; break;
+                case PlayerSeat.East: playCardsEast = destination; break;
+                case PlayerSeat.West: playCardsWest = destination; break;
+            }
+        }
+
+        public bool TryGetPlayedCardViewportBounds(PlayerSeat seat, Camera camera, out Rect bounds)
+        {
+            bounds = default;
+            var cards = seat switch
+            {
+                PlayerSeat.North => playCardsNorth,
+                PlayerSeat.East => playCardsEast,
+                PlayerSeat.West => playCardsWest,
+                _ => playCardsSouth,
+            };
+            if (camera == null || cards == null || !cards.gameObject.activeInHierarchy || cards.childCount == 0) return false;
+            var min = new Vector2(float.MaxValue, float.MaxValue);
+            var max = new Vector2(float.MinValue, float.MinValue);
+            var corners = new Vector3[4];
+            foreach (Transform child in cards)
+            {
+                if (child is not RectTransform rect || !child.gameObject.activeInHierarchy) continue;
+                rect.GetWorldCorners(corners);
+                foreach (var corner in corners)
+                {
+                    var point = camera.WorldToViewportPoint(corner);
+                    if (point.z <= 0f) continue;
+                    min = Vector2.Min(min, point); max = Vector2.Max(max, point);
+                }
+            }
+            if (min.x > max.x) return false;
+            bounds = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+            return true;
         }
 
         private void RenderPlayZones()
@@ -694,6 +885,27 @@ namespace Guandan.UI
         private void RenderRoute()
         {
             if (!director.RaceOpen || director.Match?.LastHandResult == null) return;
+            var complete = director.Race.IsComplete;
+            var ready = complete && director.MatchResultReady;
+            matchResultPanel.SetActive(ready);
+            routeTitleText.gameObject.SetActive(!ready);
+            if (complete)
+            {
+                foreach (var text in new[] { routeSummaryText, routeAdviceText, routeResultText }) text.gameObject.SetActive(false);
+                SetRouteTrackVisible(blueRouteCells, false); SetRouteTrackVisible(redRouteCells, false);
+                steadyButtonUi.gameObject.SetActive(false); riskyButtonUi.gameObject.SetActive(false);
+                enterTreasureButtonUi.gameObject.SetActive(false); continueButtonUi.gameObject.SetActive(false);
+                restartButtonUi.gameObject.SetActive(ready);
+                if (!ready) routeTitleText.text = "最后一步 · 宝藏即将揭晓";
+                var won = director.Race.WinningTeam == 0;
+                matchResultArt.texture = won ? victoryArt : defeatArt;
+                matchResultTitle.text = won ? "恭喜获胜" : "惜败此局";
+                matchResultTitle.color = won ? new Color(1f, 0.88f, 0.49f) : new Color(0.87f, 0.92f, 0.93f);
+                matchResultDetail.text = won
+                    ? $"你与队友率先取得地宫宝藏\n青队 {director.Race.GetPosition(0)} 格  ·  朱队 {director.Race.GetPosition(1)} 格"
+                    : $"对手率先取得宝藏 · 再战一局\n青队 {director.Race.GetPosition(0)} 格  ·  朱队 {director.Race.GetPosition(1)} 格";
+                return;
+            }
             var result = director.Match.LastHandResult;
             var winningTeamName = result.WinningTeam == 0 ? "青队" : "朱队";
             var firstName = result.FirstSeat == PlayerSeat.South ? "你" : director.GetProfile(result.FirstSeat).Name;
@@ -713,8 +925,8 @@ namespace Guandan.UI
             SetRouteTrackVisible(redRouteCells, !transitionOnly);
             steadyButtonUi.gameObject.SetActive(viewReady && !director.RaceResolved);
             riskyButtonUi.gameObject.SetActive(viewReady && !director.RaceResolved);
-            routeTitleText.rectTransform.anchoredPosition = new Vector2(0f, transitionOnly ? 38f : 102f);
-            enterTreasureButtonUi.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -42f);
+            routeTitleText.rectTransform.anchoredPosition = new Vector2(0f, transitionOnly ? 92f : 232f);
+            enterTreasureButtonUi.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -44f);
             steadyButtonUi.interactable = humanChoice && viewReady;
             riskyButtonUi.interactable = humanChoice && viewReady;
             SetButtonText("Steady", $"稳当推进\n确定前进 {result.BaseSteps} 格");
@@ -769,27 +981,126 @@ namespace Guandan.UI
             var value = director.GetSeatPlayLabel(seat) ?? string.Empty;
             var lineBreak = value.IndexOf('\n');
             var cards = director.GetSeatPlayCards(seat);
+            // In XR, the three spatial plaques already state each AI's current action.
+            // Repeating that label above the played cards made it collide with the plaque;
+            // leave this zone visual and let the cards themselves carry the table state.
+            var attachedToSeat = cardRoot.GetComponentInParent<WorldSeatStatusUi>() != null;
+            var showTitle = !attachedToSeat && (!spatialXrMode || seat == PlayerSeat.South);
+            if (title.gameObject.activeSelf != showTitle) title.gameObject.SetActive(showTitle);
             if (cards == null || cards.Count == 0)
             {
-                title.text = lineBreak >= 0 ? value[(lineBreak + 1)..] : value;
+                title.text = showTitle ? (lineBreak >= 0 ? value[(lineBreak + 1)..] : value) : string.Empty;
+                if (attachedToSeat) cardRoot.sizeDelta = new Vector2(858f, 0f);
                 return;
             }
-            title.text = lineBreak >= 0 ? value[..lineBreak] : value;
-            var step = cards.Count > 8 ? 41f : 56f;
+            title.text = showTitle ? (lineBreak >= 0 ? value[..lineBreak] : value) : string.Empty;
+            if (attachedToSeat)
+            {
+                // Every played combination stays in one readable row. Larger combinations
+                // overlap progressively instead of wrapping into a second line.
+                const float width = 190f, height = 285f, preferredStep = 165f;
+                var horizontalStep = cards.Count <= 1
+                    ? width
+                    : Mathf.Min(preferredStep, (858f - width) / (cards.Count - 1));
+                cardRoot.sizeDelta = new Vector2(858f, height);
+                for (var index = 0; index < cards.Count; index++)
+                {
+                    var x = (index - (cards.Count - 1) * 0.5f) * horizontalStep;
+                    var y = -height * 0.5f;
+                    var graphic = CreateMiniCardGraphic(cards[index], cardRoot, new Vector2(x, y), new Vector2(width, height), true);
+                    // The stack root uses a top pivot; each card anchors to that same edge.
+                    graphic.anchorMin = graphic.anchorMax = new Vector2(0.5f, 1f);
+                    graphic.anchoredPosition = new Vector2(x, y);
+                    AddPlayedWildcardMark(graphic, seat, cards[index], new Vector2(width, height), horizontalStep);
+                }
+                var meanings = cards.Where(c => director.TryGetSeatWildcard(seat, c.Id, out _))
+                    .Select(c => { director.TryGetSeatWildcard(seat,c.Id,out var use); return GuandanMatchEngine.RankLabel(use.RepresentedRank); }).ToArray();
+                if(meanings.Length>0)
+                {
+                    // Readable at the same distance as the bold card ranks, even in
+                    // a dense overlapped bomb where an in-card badge has little room.
+                    var banner=CreatePanel("WildcardExplanation",cardRoot,new Vector2(0f,-height-60f),new Vector2(760f,108f),new Color(0.30f,0.025f,0.012f,0.96f));
+                    var bannerRect=(RectTransform)banner.transform;
+                    bannerRect.anchorMin=bannerRect.anchorMax=new Vector2(0.5f,1f);
+                    bannerRect.anchoredPosition=new Vector2(0f,-height-60f);
+                    banner.GetComponent<Image>().raycastTarget=false;
+                    var meaning=CreateText("WildcardExplanationText","配作 "+string.Join("、",meanings),bannerRect,Vector2.zero,72,TextAnchor.MiddleCenter,new Color(1f,0.92f,0.62f));
+                    meaning.rectTransform.sizeDelta=new Vector2(736f,108f);
+                    meaning.resizeTextForBestFit=false; meaning.fontStyle=FontStyle.Bold;
+                    cardRoot.sizeDelta=new Vector2(858f,height+120f);
+                }
+                return;
+            }
+            var cardSize = seat == PlayerSeat.South ? new Vector2(84f, 126f) : new Vector2(96f, 144f);
+            var availableWidth = Mathf.Max(cardSize.x, cardRoot.rect.width);
+            var step = cards.Count <= 1
+                ? cardSize.x
+                : Mathf.Min(cardSize.x - 4f, (availableWidth - cardSize.x) / (cards.Count - 1));
             for (var index = 0; index < cards.Count; index++)
             {
                 var x = (index - (cards.Count - 1) * 0.5f) * step;
-                CreateMiniCardGraphic(cards[index], cardRoot, new Vector2(x, 0f), new Vector2(52f, 80f));
+                var graphic = CreateMiniCardGraphic(cards[index], cardRoot, new Vector2(x, 0f), cardSize);
+                AddPlayedWildcardMark(graphic, seat, cards[index], cardSize, step);
             }
+        }
+
+        private void AddPlayedWildcardMark(RectTransform cardRect, PlayerSeat seat, Card card, Vector2 size, float exposedWidth)
+        {
+            var used = director.TryGetSeatWildcard(seat, card.Id, out var use);
+            if (!used && !card.IsWildcard(director.Match.LevelRank)) return;
+            var width = Mathf.Clamp(exposedWidth - 6f, 30f, size.x * 0.43f);
+            var badge = CreatePanel("WildcardBadge", cardRect, new Vector2(-size.x * 0.5f + width * 0.5f + 4f, -size.y * 0.29f), new Vector2(width, size.y * 0.31f), new Color(0.54f, 0.045f, 0.018f, 1f));
+            badge.GetComponent<Image>().raycastTarget = false;
+            var copy = used ? $"配\n{GuandanMatchEngine.RankLabel(use.RepresentedRank)}" : "配";
+            var label = CreateText("WildcardMeaning", copy, badge.transform, Vector2.zero,
+                Mathf.RoundToInt(Mathf.Min(size.y * 0.145f, width * 0.8f)), TextAnchor.MiddleCenter, new Color(1f, 0.92f, 0.62f));
+            label.rectTransform.sizeDelta = new Vector2(width, size.y * 0.31f);
+            label.resizeTextForBestFit = false; label.fontStyle = FontStyle.Bold; label.lineSpacing = 0.9f;
+        }
+
+        private void BuildMatchResultPanel()
+        {
+            // The treasure room remains visible; only the old result rail is replaced.
+            victoryArt = Resources.Load<Texture2D>("GuandanUI/ResultVictory");
+            defeatArt = Resources.Load<Texture2D>("GuandanUI/ResultDefeat");
+            matchResultPanel = new GameObject("MatchResultPanel", typeof(RectTransform), typeof(RawImage));
+            var rect = (RectTransform)matchResultPanel.transform;
+            rect.SetParent(routePanel.transform, false);
+            rect.anchoredPosition = new Vector2(0f, 15f); rect.sizeDelta = new Vector2(1380f, 788f);
+            matchResultArt = matchResultPanel.GetComponent<RawImage>(); matchResultArt.raycastTarget = false;
+            // The title/detail pair is one visual group.  Its original bounds sat
+            // 23 units below the plaque centre; lifting both rows by that amount
+            // makes the top and bottom breathing room equal without moving the CTA.
+            matchResultTitle = CreateText("MatchResultTitle", "", rect, new Vector2(0f, 61f), 84, TextAnchor.MiddleCenter, Color.white);
+            matchResultTitle.rectTransform.sizeDelta = new Vector2(960f, 120f);
+            matchResultDetail = CreateText("MatchResultDetail", "", rect, new Vector2(0f, -67f), 34, TextAnchor.MiddleCenter, new Color(0.93f, 0.91f, 0.83f));
+            matchResultDetail.rectTransform.sizeDelta = new Vector2(1000f, 108f);
+            foreach (var text in new[] { matchResultTitle, matchResultDetail })
+            {
+                text.resizeTextForBestFit = false; text.fontStyle = FontStyle.Bold;
+                var shadow = text.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0.015f, 0.02f, 0.018f, 1f); shadow.effectDistance = new Vector2(2f, -3f);
+            }
+            restartButtonUi.transform.SetParent(rect, false);
+            ((RectTransform)restartButtonUi.transform).anchoredPosition = new Vector2(0f, -211f);
+            ApplyAspectSkin(restartButtonUi.GetComponent<Image>(), seatPlaqueSprite, Color.white);
+            var restartColors = restartButtonUi.colors;
+            restartColors.normalColor = restartColors.selectedColor = Color.white;
+            restartColors.highlightedColor = new Color(1f, 0.93f, 0.76f);
+            restartColors.pressedColor = new Color(0.92f, 0.78f, 0.56f);
+            restartButtonUi.colors = restartColors;
+            matchResultPanel.SetActive(false);
         }
 
         private Image[] CreateHeaderTrack(string name, Transform parent, Vector2 position, Color activeColor)
         {
-            var track = CreateRect(name, parent, position, new Vector2(310f, 24f));
+            var track = CreateRect(name, parent, position, new Vector2(410f, 30f));
             var cells = new Image[TreasureRace.TrackLength];
+            const float step = 34f;
+            var start = -(cells.Length - 1) * step * 0.5f;
             for (var index = 0; index < cells.Length; index++)
             {
-                var cell = CreatePanel($"Step_{index + 1:00}", track, new Vector2(-135f + index * 30f, 0f), new Vector2(23f, 10f), new Color(0.12f, 0.14f, 0.13f, 0.92f));
+                var cell = CreatePanel($"Step_{index + 1:00}", track, new Vector2(start + index * step, 0f), new Vector2(27f, 14f), new Color(0.12f, 0.14f, 0.13f, 0.92f));
                 cells[index] = cell.GetComponent<Image>();
                 cells[index].raycastTarget = false;
             }
@@ -804,7 +1115,7 @@ namespace Guandan.UI
 
         private static void CreateHeaderCap(Transform parent, string name, Sprite sprite, Vector2 position)
         {
-            var cap = CreatePanelStatic(name, parent, position, new Vector2(154f, 138f), Color.white);
+            var cap = CreatePanelStatic(name, parent, position, new Vector2(140f, 132f), Color.white);
             var image = cap.GetComponent<Image>();
             image.sprite = sprite;
             image.type = Image.Type.Simple;
@@ -826,17 +1137,21 @@ namespace Guandan.UI
 
         private Image[] CreateRouteTrack(string name, Transform parent, Vector2 position, Color activeColor)
         {
-            var track = CreateRect(name, parent, position, new Vector2(560f, 30f));
-            var label = CreateText("Label", name.StartsWith("Blue") ? "青" : "朱", track, new Vector2(-265f, 0f), 16, TextAnchor.MiddleCenter, activeColor);
-            label.rectTransform.sizeDelta = new Vector2(36f, 28f);
+            var track = CreateRect(name, parent, position, new Vector2(760f, 52f));
+            var label = CreateText("Label", name.StartsWith("Blue") ? "青" : "朱", track, new Vector2(-358f, 0f), 26, TextAnchor.MiddleCenter, activeColor);
+            label.fontStyle = FontStyle.Bold;
+            label.rectTransform.sizeDelta = new Vector2(52f, 48f);
             var cells = new Image[TreasureRace.TrackLength];
+            const float step = 61f;
+            var start = -(cells.Length - 1) * step * 0.5f + 20f;
             for (var index = 0; index < cells.Length; index++)
             {
-                var cell = CreatePanel($"Step_{index + 1:00}", track, new Vector2(-210f + index * 47f, 0f), new Vector2(39f, 22f), new Color(0.12f, 0.14f, 0.13f, 0.88f));
+                var cell = CreatePanel($"Step_{index + 1:00}", track, new Vector2(start + index * step, 0f), new Vector2(56f, 44f), new Color(0.12f, 0.14f, 0.13f, 0.88f));
                 cells[index] = cell.GetComponent<Image>();
                 cells[index].raycastTarget = false;
-                var number = CreateText("Number", (index + 1).ToString(), cell.transform, Vector2.zero, 11, TextAnchor.MiddleCenter, Color.white);
-                number.rectTransform.sizeDelta = new Vector2(39f, 22f);
+                var number = CreateText("Number", (index + 1).ToString(), cell.transform, Vector2.zero, 24, TextAnchor.MiddleCenter, Color.white);
+                number.fontStyle = FontStyle.Bold;
+                number.rectTransform.sizeDelta = new Vector2(56f, 44f);
             }
             return cells;
         }
@@ -855,7 +1170,7 @@ namespace Guandan.UI
             }
         }
 
-        private RectTransform CreateMiniCardGraphic(Card card, Transform parent, Vector2 position, Vector2 size)
+        private RectTransform CreateMiniCardGraphic(Card card, Transform parent, Vector2 position, Vector2 size, bool emphasizeRank = false)
         {
             var go = new GameObject($"Mini_{card.Id}");
             go.transform.SetParent(parent, false);
@@ -868,9 +1183,46 @@ namespace Guandan.UI
             image.preserveAspect = true;
             image.color = Color.white;
             image.raycastTarget = false;
-            var fontSize = Mathf.Clamp(Mathf.RoundToInt(size.y * 0.19f), 12, 20);
-            var label = CreateText("Label", CardLabel(card, director.Match.LevelRank), rect, Vector2.zero, fontSize, TextAnchor.MiddleCenter, SuitColor(card));
-            label.rectTransform.sizeDelta = size - new Vector2(4f, 4f);
+            var fontSize = Mathf.Clamp(Mathf.RoundToInt(size.y * 0.235f), 20, emphasizeRank ? 68 : 34);
+            if (emphasizeRank)
+            {
+                var rankPosition = card.IsJoker ? Vector2.zero : new Vector2(-size.x * 0.27f, size.y * 0.25f);
+                var rank = CreateText("Rank", card.RankLabel, rect, rankPosition, fontSize, TextAnchor.MiddleCenter, SuitColor(card));
+                rank.rectTransform.sizeDelta = card.IsJoker
+                    ? new Vector2(size.x - 12f, size.y * 0.74f)
+                    : new Vector2(size.x * 0.42f, size.y * 0.34f);
+                rank.fontStyle = FontStyle.Bold;
+                rank.resizeTextForBestFit = false;
+                var outline = rank.gameObject.AddComponent<Outline>();
+                outline.effectColor = new Color(0.10f, 0.055f, 0.02f, 0.86f);
+                outline.effectDistance = new Vector2(1.8f, -1.8f);
+
+                var suit = card.Suit switch
+                {
+                    CardSuit.Clubs => "♣",
+                    CardSuit.Diamonds => "♦",
+                    CardSuit.Hearts => "♥",
+                    CardSuit.Spades => "♠",
+                    _ => string.Empty,
+                };
+                if (!string.IsNullOrEmpty(suit))
+                {
+                    var symbol = CreateText("Suit", suit, rect, new Vector2(-size.x * 0.27f, -size.y * 0.05f), Mathf.RoundToInt(fontSize * 0.72f), TextAnchor.MiddleCenter, SuitColor(card));
+                    symbol.rectTransform.sizeDelta = new Vector2(size.x * 0.42f, size.y * 0.30f);
+                    symbol.fontStyle = FontStyle.Normal;
+                    symbol.resizeTextForBestFit = false;
+                    symbol.lineSpacing = 0.84f;
+                }
+            }
+            else
+            {
+                // The player's own played cards and transient flying cards keep their
+                // original normal weight; only opponents' distant ranks are emphasized.
+                var label = CreateText("Label", CardLabel(card, director.Match.LevelRank), rect, Vector2.zero, fontSize, TextAnchor.MiddleCenter, SuitColor(card));
+                label.rectTransform.sizeDelta = size - new Vector2(6f, 6f);
+                label.fontStyle = FontStyle.Normal;
+                label.lineSpacing = 0.92f;
+            }
             return rect;
         }
 
@@ -1050,7 +1402,7 @@ namespace Guandan.UI
         private IEnumerator TreasureMoveRoutine(int team, int from, int to, bool chestOpened)
         {
             var color = team == 0 ? new Color(0.12f, 0.50f, 0.44f, 0.96f) : new Color(0.64f, 0.16f, 0.10f, 0.96f);
-            var panel = CreatePanel("TreasureMove", effectRoot, new Vector2(0f, 40f), new Vector2(620f, 170f), color);
+            var panel = CreatePanel("TreasureMove", effectRoot, new Vector2(0f, -454f), new Vector2(620f, 106f), color);
             panel.GetComponent<Image>().raycastTarget = false;
             var group = panel.AddComponent<CanvasGroup>();
             var message = chestOpened
@@ -1058,9 +1410,9 @@ namespace Guandan.UI
                 : $"{(team == 0 ? "青队" : "朱队")}推进\n第 {from} 格  →  第 {to} 格";
             var label = CreateText("Label", message, panel.transform, Vector2.zero, chestOpened ? 38 : 28, TextAnchor.MiddleCenter, new Color(1f, 0.86f, 0.50f));
             label.rectTransform.sizeDelta = new Vector2(590f, 150f);
-            for (var time = 0f; time < 2.0f; time += Time.unscaledDeltaTime)
+            for (var time = 0f; time < 1.1f; time += Time.unscaledDeltaTime)
             {
-                var progress = Mathf.Clamp01(time / 2f);
+                var progress = Mathf.Clamp01(time / 1.1f);
                 panel.transform.localScale = Vector3.one * Mathf.Lerp(0.82f, 1f, Mathf.Min(1f, progress * 4f));
                 group.alpha = progress < 0.72f ? 1f : 1f - (progress - 0.72f) / 0.28f;
                 yield return null;
@@ -1102,7 +1454,7 @@ namespace Guandan.UI
 
         private Button CreateCardButton(Card card, Transform parent, Vector2 position)
         {
-            var button = CreateButton($"Card_{card.Id}", position, new Vector2(90f, 126f), CardLabel(card, director.Match.LevelRank), new Color(0.92f, 0.87f, 0.72f), UiHitKind.Card, -1, card.Id);
+            var button = CreateButton($"Card_{card.Id}", position, new Vector2(HandCardWidth, HandCardHeight), CardLabel(card, director.Match.LevelRank), new Color(0.92f, 0.87f, 0.72f), UiHitKind.Card, -1, card.Id);
             var image = button.GetComponent<Image>();
             if (image != null)
             {
@@ -1114,10 +1466,10 @@ namespace Guandan.UI
             var cardLabel = button.GetComponentInChildren<Text>();
             if (cardLabel != null)
             {
-                cardLabel.fontSize = 21;
+                cardLabel.fontSize = 23;
                 cardLabel.fontStyle = FontStyle.Bold;
-                cardLabel.resizeTextMinSize = 14;
-                cardLabel.resizeTextMaxSize = 21;
+                cardLabel.resizeTextMinSize = 16;
+                cardLabel.resizeTextMaxSize = 23;
             }
             var colors = button.colors;
             colors.normalColor = Color.white;
@@ -1133,7 +1485,7 @@ namespace Guandan.UI
             var go = new GameObject(name);
             Transform parent = root;
             if (name.StartsWith("Lot_")) parent = lotteryPanel.transform;
-            else if (name == "Sound") parent = root;
+            else if (name == "Sound") parent = hudRoot;
             else if (name is "Steady" or "Risky" or "EnterTreasure" or "Continue" or "Restart") parent = routePanel.transform;
             else if (name == "ProfileClose") parent = profilePanel.transform;
             else if (name == "VariantClose") parent = variantPanel.transform;
@@ -1172,6 +1524,15 @@ namespace Guandan.UI
             label.resizeTextForBestFit = true;
             label.resizeTextMinSize = 12;
             label.resizeTextMaxSize = 20;
+            if (name is "Steady" or "Risky" or "EnterTreasure" or "Continue" or "Restart")
+            {
+                label.resizeTextForBestFit = false;
+                label.fontSize = name == "Risky" ? 28 : 32;
+                label.fontStyle = FontStyle.Bold;
+                var shadow = label.gameObject.AddComponent<Shadow>();
+                shadow.effectColor = new Color(0.02f, 0.015f, 0.01f, 0.9f);
+                shadow.effectDistance = new Vector2(2f, -2f);
+            }
             if (authoredFrame)
             {
                 label.fontStyle = FontStyle.Bold;
@@ -1314,7 +1675,7 @@ namespace Guandan.UI
                 : Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
         }
 
-        private static Font ResolveFont()
+        internal static Font ResolveFont()
         {
             if (uiFont != null) return uiFont;
             uiFont = Font.CreateDynamicFontFromOSFont(
@@ -1355,13 +1716,14 @@ namespace Guandan.UI
 
         private static string CardLabel(Card card, int levelRank)
         {
+            if (card.IsJoker) return card.RankLabel;
             var suit = card.Suit switch
             {
                 CardSuit.Clubs => "♣",
                 CardSuit.Diamonds => "♦",
                 CardSuit.Hearts => "♥",
                 CardSuit.Spades => "♠",
-                _ => "王",
+                _ => string.Empty,
             };
             var wild = card.IsWildcard(levelRank) ? "\n配" : "";
             return $"{card.RankLabel}\n{suit}{wild}";

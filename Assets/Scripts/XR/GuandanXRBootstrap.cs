@@ -20,19 +20,15 @@ namespace Guandan.XR
         [SerializeField] private float orbitSpeed = 70f;
         [SerializeField] private float zoomSpeed = 2.5f;
         [SerializeField] private float desktopWalkSpeed = 0.72f;
-        [SerializeField] private float maxDesktopPanRadius = 0.75f;
-        [Tooltip("0 means no artificial boundary.")]
-        [SerializeField] private float maxXrOffsetRadius;
 
-        // The authored table is tall enough that the previous eye point read as seated too
-        // low in PICO Emulator.  Keep the player at a natural standing/sitting XR eye height.
-        private static readonly Vector3 TableViewPosition = new(0f, 3.42f, -5.17f);
+        // A slightly lower eye point leaves the near table comfortably visible.
+        private static readonly Vector3 TableViewPosition = new(0f, 3.20f, -4.65f);
         private static readonly Vector3 TreasureViewPosition = new(0f, 2.70f, 18.25f);
 
         private Vector3 desktopBasePosition = TableViewPosition;
         private Vector3 desktopPosition = TableViewPosition;
         private float desktopYaw;
-        private float desktopPitch = 16f;
+        private float desktopPitch = 10f;
         private float desktopFieldOfView = 60f;
         private bool leftTriggerHeld;
         private bool rightTriggerHeld;
@@ -42,9 +38,21 @@ namespace Guandan.XR
         private bool loggedPicoHandDevice;
         private bool loggedPicoHandUnavailable;
         private bool picoHandRayAvailable;
+        private bool leftControllerRayValid;
+        private bool rightControllerRayValid;
+        private bool leftHandRayValid;
+        private bool rightHandRayValid;
+        private Ray leftHandRay;
+        private Ray rightHandRay;
         private float nextPointerDiagnosticTime;
+        private Guandan.UI.UiHitTarget currentPreviewTarget;
         private TrackedPoseDriver headPoseDriver;
         private Vector3 xrEyePosition = TableViewPosition;
+        private Vector3 trackedHeadReference;
+        private Vector3 xrWalkOffset;
+        private bool hasTrackedHeadReference;
+        private bool treasureView;
+
 
         public Camera HeadCamera => headCamera;
         public bool PicoHandRayAvailable => picoHandRayAvailable;
@@ -85,7 +93,7 @@ namespace Guandan.XR
             if (headCamera == null) return;
             if (Keyboard.current != null)
             {
-                if (Keyboard.current.rKey.wasPressedThisFrame) RecenterDesktop();
+                if (Keyboard.current.rKey.wasPressedThisFrame) RecenterToDesignStart();
                 if (Keyboard.current.leftArrowKey.isPressed) desktopYaw -= orbitSpeed * Time.deltaTime;
                 if (Keyboard.current.rightArrowKey.isPressed) desktopYaw += orbitSpeed * Time.deltaTime;
                 if (Keyboard.current.upArrowKey.isPressed) desktopPitch = Mathf.Clamp(desktopPitch - orbitSpeed * 0.55f * Time.deltaTime, -24f, 58f);
@@ -138,19 +146,19 @@ namespace Guandan.XR
             }
             else
             {
-                ClampXrOrigin();
-                LockXrCameraPosition();
+                UpdateXrMovement();
             }
 
-            PollController(UnityEngine.XR.InputDeviceCharacteristics.Left, leftController, ref leftTriggerHeld, Guandan.Game.PointerSource.LeftController);
-            PollController(UnityEngine.XR.InputDeviceCharacteristics.Right, rightController, ref rightTriggerHeld, Guandan.Game.PointerSource.RightController);
+            leftControllerRayValid = PollController(UnityEngine.XR.InputDeviceCharacteristics.Left, leftController, ref leftTriggerHeld, Guandan.Game.PointerSource.LeftController);
+            rightControllerRayValid = PollController(UnityEngine.XR.InputDeviceCharacteristics.Right, rightController, ref rightTriggerHeld, Guandan.Game.PointerSource.RightController);
             // Draw after pose polling so the visible ray and the click ray use the exact same
             // controller sample instead of differing by one frame in the emulator.
-            UpdateRay(leftController, leftRay);
-            UpdateRay(rightController, rightRay);
+            UpdateRay(leftController, leftRay, leftControllerRayValid);
+            UpdateRay(rightController, rightRay, rightControllerRayValid);
+            leftHandRayValid = PollPicoHandPinch(HandType.HandLeft, ref leftHandPinchHeld, Guandan.Game.PointerSource.LeftController, out leftHandRay);
+            rightHandRayValid = PollPicoHandPinch(HandType.HandRight, ref rightHandPinchHeld, Guandan.Game.PointerSource.RightController, out rightHandRay);
+            UpdateTargetPreview();
             LogPointerDiagnostic();
-            PollPicoHandPinch(HandType.HandLeft, ref leftHandPinchHeld, Guandan.Game.PointerSource.LeftController);
-            PollPicoHandPinch(HandType.HandRight, ref rightHandPinchHeld, Guandan.Game.PointerSource.RightController);
             // PICO Emulator 0.13 can expose a valid hand aim ray without forwarding the
             // corresponding pinch state. Keep the generic pointer module alive so the
             // emulator's virtual touch press can complete the same hover target. UiHitTarget
@@ -160,46 +168,19 @@ namespace Guandan.XR
 
         public void RecenterDesktop()
         {
-            desktopYaw = 0f;
-            desktopPitch = 16f;
-            desktopFieldOfView = 60f;
-            desktopBasePosition = TableViewPosition;
-            desktopPosition = desktopBasePosition;
-            ApplyDesktopCamera();
+            SetGameplayView(treasureView);
         }
 
-        /// <summary>
-        /// Returns either runtime to the same authored south-seat view.  Keeping this
-        /// public entry point lets the in-game "recenter" control work in a native
-        /// PICO session without changing the restored screen-UI gameplay layout.
-        /// </summary>
         public void RecenterToDesignStart()
         {
-            if (headCamera == null || xrOrigin == null || !XRSettings.enabled || !XRSettings.isDeviceActive)
-            {
-                RecenterDesktop();
-                return;
-            }
-
             TrySetFloorTracking();
-            var eye = TableViewPosition;
-            var focus = new Vector3(0f, 1.25f, 0f);
-            var planarDirection = Vector3.ProjectOnPlane(focus - eye, Vector3.up);
-            if (planarDirection.sqrMagnitude < 0.0001f)
-                planarDirection = Vector3.forward;
-            var trackedLocalPosition = headCamera.transform.localPosition;
-            if (trackedLocalPosition.sqrMagnitude < 0.0001f)
-                trackedLocalPosition = Vector3.up * 1.6f;
-            var trackedLocalYaw = Quaternion.Euler(0f, headCamera.transform.localEulerAngles.y, 0f);
-            var desiredRootRotation = Quaternion.LookRotation(planarDirection, Vector3.up) * Quaternion.Inverse(trackedLocalYaw);
-            xrOrigin.SetPositionAndRotation(eye - desiredRootRotation * trackedLocalPosition, desiredRootRotation);
-            xrEyePosition = eye;
-            LockXrCameraPosition();
+            SetGameplayView(treasureView);
         }
 
         public void SetGameplayView(bool treasure)
         {
             if (headCamera == null) return;
+            treasureView = treasure;
             var eye = treasure ? TreasureViewPosition : TableViewPosition;
             var focus = treasure ? new Vector3(0f, 0.72f, 26f) : new Vector3(0f, 1.25f, 0f);
             if (XRSettings.enabled && XRSettings.isDeviceActive)
@@ -210,8 +191,19 @@ namespace Guandan.XR
             desktopBasePosition = eye;
             desktopPosition = desktopBasePosition;
             desktopYaw = 0f;
-            desktopPitch = treasure ? 14f : 16f;
+            desktopPitch = treasure ? 14f : 10f;
             desktopFieldOfView = treasure ? 58f : 60f;
+            ApplyDesktopCamera();
+            if(treasure && FindFirstObjectByType<Guandan.Game.GameDirector>()?.Race?.IsComplete == true)
+                FrameTreasureFinale();
+        }
+
+        public void FrameTreasureFinale()
+        {
+            // Reframe the desktop fallback only: the eye stays fixed, and XR users
+            // retain physical head control without an involuntary camera rotation.
+            if(headCamera==null || (XRSettings.enabled && XRSettings.isDeviceActive)) return;
+            desktopYaw=13f; desktopPitch=13f; desktopFieldOfView=64f;
             ApplyDesktopCamera();
         }
 
@@ -237,7 +229,9 @@ namespace Guandan.XR
                 eye - rootRotation * localHeadPosition,
                 rootRotation);
             xrEyePosition = eye;
-            LockXrCameraPosition();
+            xrWalkOffset = Vector3.zero;
+            hasTrackedHeadReference = TryReadHeadPosition(out trackedHeadReference);
+            UpdateXrMovement();
         }
 
         private void EnsureRig()
@@ -279,10 +273,8 @@ namespace Guandan.XR
             // HMD controls so rotation and 6DoF movement follow the headset in both the
             // Emulator and a device. The authored world start is preserved by the XR root
             // recenter logic; this driver only supplies the live local head pose.
-            // Keep the authored camera world position fixed.  The emulator can expose a
-            // large synthetic head-position offset, while the requested interaction is
-            // natural look-around; rotation-only tracking avoids moving the player under
-            // the table and still gives true headset yaw/pitch/roll.
+            // Rotation uses the pose driver; bounded translation is applied from the
+            // live HMD delta below, relative to each scene's recentered eye position.
             headPoseDriver.trackingType = TrackedPoseDriver.TrackingType.RotationOnly;
             headPoseDriver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
             headPoseDriver.ignoreTrackingState = false;
@@ -339,28 +331,75 @@ namespace Guandan.XR
             return line;
         }
 
-        private void UpdateRay(Transform controller, LineRenderer ray)
+        private void UpdateRay(Transform controller, LineRenderer ray, bool tracked)
         {
             if (controller == null || ray == null) return;
-            ray.enabled = XRSettings.enabled;
+            ray.enabled = XRSettings.enabled && tracked;
+            if (!ray.enabled) return;
             var pointerRay = BuildPointerRay(controller);
             var distance = 5f;
             if (Physics.Raycast(pointerRay, out var hit, 8f, ~0, QueryTriggerInteraction.Collide))
                 distance = hit.distance;
             ray.useWorldSpace = true;
-            ray.SetPosition(0, pointerRay.origin);
-            ray.SetPosition(1, pointerRay.origin + pointerRay.direction * distance);
+            var forward = Vector3.Dot(pointerRay.direction, headCamera.transform.forward);
+            var start = Mathf.Max(0.35f, (headCamera.nearClipPlane + 0.08f) / Mathf.Max(0.1f, forward));
+            ray.enabled = forward > 0.1f && distance > start;
+            ray.SetPosition(0, pointerRay.GetPoint(start));
+            ray.SetPosition(1, pointerRay.GetPoint(distance));
         }
 
-        private void PollController(InputDeviceCharacteristics side, Transform controller, ref bool held, Guandan.Game.PointerSource source)
+        private void UpdateTargetPreview()
         {
-            if (controller == null || !XRSettings.enabled) return;
+            Guandan.UI.UiHitTarget target;
+            if (XRSettings.enabled && XRSettings.isDeviceActive)
+            {
+                // Prefer native PICO hand aim when present, then tracked controllers. Never
+                // preview against a default/stale transform: the highlighted target must be
+                // exactly the object under the live pointer shown to the player.
+                target = rightHandRayValid ? FindNearestUiTarget(rightHandRay) : null;
+                if (target == null && leftHandRayValid) target = FindNearestUiTarget(leftHandRay);
+                if (target == null && rightControllerRayValid) target = FindNearestUiTarget(BuildPointerRay(rightController));
+                if (target == null && leftControllerRayValid) target = FindNearestUiTarget(BuildPointerRay(leftController));
+            }
+            else
+            {
+                target = Mouse.current != null && headCamera != null
+                    ? FindNearestUiTarget(headCamera.ScreenPointToRay(Mouse.current.position.ReadValue()))
+                    : null;
+            }
+            if (target == currentPreviewTarget) return;
+            currentPreviewTarget = target;
+            FindFirstObjectByType<Guandan.Game.GameDirector>()?.PreviewTarget(target);
+        }
+
+        private static Guandan.UI.UiHitTarget FindNearestUiTarget(Ray ray)
+        {
+            var hits = Physics.RaycastAll(ray, 8f, ~0, QueryTriggerInteraction.Collide);
+            System.Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
+            foreach (var hit in hits)
+            {
+                var target = hit.collider.GetComponentInParent<Guandan.UI.UiHitTarget>();
+                if (target != null && target.isActiveAndEnabled) return target;
+            }
+            return null;
+        }
+
+        private bool PollController(InputDeviceCharacteristics side, Transform controller, ref bool held, Guandan.Game.PointerSource source)
+        {
+            if (controller == null || !XRSettings.enabled)
+            {
+                held = false;
+                return false;
+            }
             var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
             InputDevices.GetDevicesWithCharacteristics(side | InputDeviceCharacteristics.Controller, devices);
             var device = devices.Count > 0 ? devices[0] : default;
             var hasLegacyController = devices.Count > 0 && device.isValid;
+            var legacyTracked = hasLegacyController;
             if (hasLegacyController)
             {
+                if (device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.isTracked, out var isTracked))
+                    legacyTracked = isTracked;
                 if (device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out var position))
                     ApplyControllerPose(controller, position, null);
                 if (device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out var rotation))
@@ -374,7 +413,7 @@ namespace Guandan.XR
             var inputController = side.HasFlag(InputDeviceCharacteristics.Left)
                 ? XRController.leftHand
                 : XRController.rightHand;
-            UpdateControllerPoseFromInputSystem(inputController, controller);
+            var inputSystemTracked = UpdateControllerPoseFromInputSystem(inputController, controller);
             var pressed = (hasLegacyController
                 && device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.triggerButton, out var legacyTrigger)
                 && legacyTrigger)
@@ -398,6 +437,7 @@ namespace Guandan.XR
                 Guandan.Game.SocialProp.Held?.ReturnHome();
             }
             held = pressed;
+            return legacyTracked || inputSystemTracked;
         }
 
         /// <summary>
@@ -408,8 +448,9 @@ namespace Guandan.XR
         /// controllers.  This keeps the gameplay as flat cards on the head-relative canvas;
         /// it does not replace it with 3D cards or alter the authored tomb scene.
         /// </summary>
-        private bool PollPicoHandPinch(HandType hand, ref bool held, Guandan.Game.PointerSource source)
+        private bool PollPicoHandPinch(HandType hand, ref bool held, Guandan.Game.PointerSource source, out Ray aimRay)
         {
+            aimRay = default;
             if (!XRSettings.enabled || !XRSettings.isDeviceActive || xrOrigin == null)
             {
                 held = false;
@@ -460,6 +501,7 @@ namespace Guandan.XR
                     : interactionHand.pointer.rotation.ReadValue();
                 var origin = xrOrigin.TransformPoint(localPosition);
                 var direction = xrOrigin.TransformDirection(localRotation * Vector3.forward);
+                aimRay = BuildPointerRay(origin, direction);
                 if (hasPicoAimRay && !loggedPicoHandAim)
                 {
                     loggedPicoHandAim = true;
@@ -467,7 +509,7 @@ namespace Guandan.XR
                 }
 
                 if (picoPinching && !held && direction.sqrMagnitude > 0.0001f)
-                    TryInteractAtRay(BuildPointerRay(origin, direction), source);
+                    TryInteractAtRay(aimRay, source);
 
                 held = picoPinching;
                 return true;
@@ -497,7 +539,19 @@ namespace Guandan.XR
                 var origin = xrOrigin.TransformPoint(localPosition);
                 var direction = xrOrigin.TransformDirection(localRotation * Vector3.forward);
                 if (direction.sqrMagnitude > 0.0001f)
-                    TryInteractAtRay(BuildPointerRay(origin, direction), source);
+                {
+                    aimRay = BuildPointerRay(origin, direction);
+                    TryInteractAtRay(aimRay, source);
+                }
+            }
+
+            if (hasAimRay && aimRay.direction.sqrMagnitude < 0.0001f)
+            {
+                var localPosition = aim.aimRayPose.Position.ToVector3();
+                var localRotation = aim.aimRayPose.Orientation.ToQuat();
+                aimRay = BuildPointerRay(
+                    xrOrigin.TransformPoint(localPosition),
+                    xrOrigin.TransformDirection(localRotation * Vector3.forward));
             }
 
             held = pinching;
@@ -551,6 +605,9 @@ namespace Guandan.XR
         private bool UpdateControllerPoseFromInputSystem(XRController inputController, Transform controller)
         {
             if (inputController == null || controller == null) return false;
+            if (!inputController.added || !inputController.enabled) return false;
+            var isTracked = inputController.TryGetChildControl<ButtonControl>("isTracked");
+            if (isTracked != null && !isTracked.isPressed) return false;
             var position = inputController.TryGetChildControl<Vector3Control>("devicePosition")
                 ?? inputController.TryGetChildControl<Vector3Control>("position");
             var rotation = inputController.TryGetChildControl<QuaternionControl>("deviceRotation")
@@ -641,20 +698,52 @@ namespace Guandan.XR
             headCamera.fieldOfView = desktopFieldOfView;
         }
 
-        private void LockXrCameraPosition()
+        private void UpdateXrMovement()
         {
-            if (headCamera == null) return;
-            // PICO Emulator may apply a synthetic tracking-space translation to the rig.
-            // Keep the authored eye point stable as requested; head rotation is still driven
-            // by TrackedPoseDriver and therefore remains fully immersive.
-            headCamera.transform.position = xrEyePosition;
+            if (headCamera == null || xrOrigin == null) return;
+            var stick = Vector2.zero;
+            var left = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+            left.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primary2DAxis, out stick);
+            var inputStick = XRController.leftHand?.TryGetChildControl<Vector2Control>("thumbstick");
+            if (inputStick != null) stick = inputStick.ReadValue();
+            if (stick.magnitude > 0.18f)
+            {
+                var heading = Quaternion.Euler(0f, headCamera.transform.eulerAngles.y, 0f);
+                xrWalkOffset += heading * new Vector3(stick.x, 0f, stick.y) * (desktopWalkSpeed * Time.deltaTime);
+                xrWalkOffset = ConstrainWalkOffset(xrWalkOffset);
+            }
+            var trackedOffset = Vector3.zero;
+            if (TryReadHeadPosition(out var tracked))
+            {
+                if (!hasTrackedHeadReference) { trackedHeadReference = tracked; hasTrackedHeadReference = true; }
+                trackedOffset = xrOrigin.rotation * (tracked - trackedHeadReference);
+            }
+            var offset = ConstrainWalkOffset(xrWalkOffset + Vector3.ProjectOnPlane(trackedOffset, Vector3.up));
+            offset.y = Mathf.Clamp(trackedOffset.y, -0.22f, 0.22f);
+            headCamera.transform.position = xrEyePosition + offset;
+        }
+
+        private static bool TryReadHeadPosition(out Vector3 position)
+        {
+            var hmd = InputDevices.GetDeviceAtXRNode(XRNode.Head);
+            if (hmd.isValid && hmd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.centerEyePosition, out position)) return true;
+            if (hmd.isValid && hmd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out position)) return true;
+            foreach (var device in InputSystem.devices)
+                if (device is XRHMD xrHmd && xrHmd.isTracked.isPressed)
+                { position = xrHmd.centerEyePosition.ReadValue(); return true; }
+            position = Vector3.zero;
+            return false;
+        }
+
+        private static Vector3 ConstrainWalkOffset(Vector3 offset)
+        {
+            // Stay in front of the south edge: 1.2 m wide and 0.7 m deep.
+            return new Vector3(Mathf.Clamp(offset.x, -0.60f, 0.60f), 0f, Mathf.Clamp(offset.z, -0.35f, 0.35f));
         }
 
         private void ConstrainDesktopPosition()
         {
-            var offset = Vector3.ProjectOnPlane(desktopPosition - desktopBasePosition, Vector3.up);
-            if (offset.magnitude > maxDesktopPanRadius) offset = offset.normalized * maxDesktopPanRadius;
-            desktopPosition = desktopBasePosition + offset;
+            desktopPosition = desktopBasePosition + ConstrainWalkOffset(desktopPosition - desktopBasePosition);
         }
 
         private static Guandan.Game.AvatarTarget FindAvatarAlongRay(Ray ray, float distance)
@@ -673,15 +762,6 @@ namespace Guandan.XR
         {
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
-        }
-
-        private void ClampXrOrigin()
-        {
-            if (xrOrigin == null || maxXrOffsetRadius <= 0f) return;
-            var offset = new Vector3(xrOrigin.localPosition.x, 0f, xrOrigin.localPosition.z);
-            if (offset.magnitude <= maxXrOffsetRadius) return;
-            offset = offset.normalized * maxXrOffsetRadius;
-            xrOrigin.localPosition = new Vector3(offset.x, xrOrigin.localPosition.y, offset.z);
         }
 
         private void TrySetFloorTracking()

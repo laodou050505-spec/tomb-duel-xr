@@ -10,6 +10,8 @@ namespace Guandan.Game
         private GameDirector director;
         private bool available = true;
 
+        public bool IsAvailable => available;
+
         public GameAction Action => action;
 
         public void Configure(GameDirector owner, GameAction configuredAction, string text)

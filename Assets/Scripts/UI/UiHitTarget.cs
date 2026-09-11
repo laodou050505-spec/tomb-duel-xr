@@ -21,6 +21,13 @@ namespace Guandan.UI
         [SerializeField] private string value;
         private ScreenGameUi owner;
         private float lastDispatchTime = -10f;
+        private Outline focusOutline;
+        private Vector3 normalScale = Vector3.one;
+        private bool focused;
+
+        public UiHitKind Kind => kind;
+        public int Index => index;
+        public string Value => value;
 
         public void Configure(ScreenGameUi screen, UiHitKind hitKind, int hitIndex = -1, string hitValue = null)
         {
@@ -28,7 +35,28 @@ namespace Guandan.UI
             kind = hitKind;
             index = hitIndex;
             value = hitValue;
+            normalScale = transform.localScale;
             EnsureCollider();
+        }
+
+        public void SetFocused(bool value)
+        {
+            if (focused == value) return;
+            focused = value;
+            if (focusOutline == null)
+            {
+                var image = GetComponent<Image>();
+                if (image != null)
+                {
+                    focusOutline = gameObject.AddComponent<Outline>();
+                    focusOutline.effectColor = new Color(1f, 0.72f, 0.18f, 1f);
+                    focusOutline.effectDistance = new Vector2(7f, -7f);
+                    focusOutline.useGraphicAlpha = false;
+                    focusOutline.enabled = false;
+                }
+            }
+            if (focusOutline != null) focusOutline.enabled = focused;
+            transform.localScale = normalScale * (focused ? 1.10f : 1f);
         }
 
         public void BindButton(Button button)

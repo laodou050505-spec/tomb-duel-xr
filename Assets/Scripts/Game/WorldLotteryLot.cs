@@ -15,6 +15,8 @@ namespace Guandan.Game
         private GameDirector director;
         private bool available;
 
+        public bool IsAvailable => available;
+
         public void Configure(GameDirector owner, int lotIndex)
         {
             director = owner;

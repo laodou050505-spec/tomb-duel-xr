@@ -17,7 +17,7 @@ namespace Guandan.UI
         // The plaque is a real world-space surface.  Keep it large enough to read
         // comfortably in both PICO eyes instead of relying on a tiny camera HUD.
         private const float WorldScale = 0.00160f;
-        private const float HeadGap = 0.20f;
+        private const float HeadGap = 0.55f;
 
         private GameDirector director;
         private ScreenGameUi screenUi;
@@ -26,6 +26,7 @@ namespace Guandan.UI
         private Camera targetCamera;
         private Canvas canvas;
         private RectTransform canvasRect;
+        private RectTransform playedCardsRoot;
         private Text titleText;
         private Text statusText;
         private Sprite plaqueSprite;
@@ -61,6 +62,7 @@ namespace Guandan.UI
             plaqueSprite = plaque;
             targetCamera = Camera.main;
             BuildCanvas();
+            screenUi.BindSeatPlayedCards(seat, playedCardsRoot);
             initialized = true;
         }
 
@@ -104,12 +106,19 @@ namespace Guandan.UI
             statusText = CreateText(
                 "Status",
                 canvasRect,
-                new Vector2(0f, -86f),
+                new Vector2(0f, -62f),
                 new Vector2(730f, 116f),
-                42,
+                44,
                 TextAnchor.MiddleCenter,
                 new Color(0.78f, 0.90f, 0.82f));
             statusText.fontStyle = FontStyle.Bold;
+
+            var cardsObject = new GameObject("SeatPlayedCards", typeof(RectTransform));
+            playedCardsRoot = cardsObject.GetComponent<RectTransform>();
+            playedCardsRoot.SetParent(canvasRect, false);
+            playedCardsRoot.pivot = new Vector2(0.5f, 1f);
+            playedCardsRoot.anchoredPosition = new Vector2(0f, -CanvasHeight * 0.5f - 140f);
+            playedCardsRoot.sizeDelta = new Vector2(CanvasWidth, 0f);
 
             // Keep the plaque selectable so the profile panel remains available after the
             // old camera-front profile buttons are hidden.
@@ -138,7 +147,7 @@ namespace Guandan.UI
             rect.sizeDelta = size;
             rect.anchoredPosition = position;
             var text = go.GetComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            text.font = ScreenGameUi.ResolveFont();
             text.fontSize = fontSize;
             text.alignment = anchor;
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -169,7 +178,7 @@ namespace Guandan.UI
             if (next == trackedAvatar) return;
             trackedAvatar = next;
             avatarRenderers = trackedAvatar != null
-                ? trackedAvatar.GetComponentsInChildren<Renderer>(true)
+                ? trackedAvatar.GetComponentsInChildren<Renderer>(true).Where(item => item.enabled && item.gameObject.activeInHierarchy).ToArray()
                 : Array.Empty<Renderer>();
         }
 
@@ -187,6 +196,27 @@ namespace Guandan.UI
 
             transform.position = position;
             if (targetCamera == null) return;
+            // Nearby side players should not have enormous plaques that collide with
+            // the score rail. Cap their angular height and reserve the HUD's top band.
+            var viewport = targetCamera.WorldToViewportPoint(position);
+            if (viewport.z > 0.1f)
+            {
+                var visibleHeight = 2f * viewport.z * Mathf.Tan(targetCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+                var scale = Mathf.Min(WorldScale, visibleHeight * 0.065f / CanvasHeight);
+                canvasRect.localScale = Vector3.one * scale;
+                var lowerExtent = CanvasHeight * 0.5f + (playedCardsRoot.rect.height > 0f ? 140f + playedCardsRoot.rect.height : 0f);
+                position.y += Mathf.Max(0f, 0.14f + lowerExtent * scale - HeadGap);
+                transform.position = position;
+                viewport = targetCamera.WorldToViewportPoint(position);
+                var halfHeight = CanvasHeight * scale / visibleHeight * 0.5f;
+                var safeTop = 1f - 0.03f - targetCamera.aspect * 0.90f * 132f / 1740f - 0.02f;
+                if (viewport.y + halfHeight > safeTop && viewport.y - halfHeight < 1f)
+                {
+                    viewport.y = safeTop - halfHeight;
+                    transform.position = targetCamera.ViewportToWorldPoint(viewport);
+                }
+
+            }
             var toCamera = targetCamera.transform.position - transform.position;
             toCamera.y = 0f;
             if (toCamera.sqrMagnitude < 0.0001f)

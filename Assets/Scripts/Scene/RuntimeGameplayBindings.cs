@@ -96,12 +96,12 @@ namespace Guandan.Scene
             // label becomes enormous at close range and duplicates the same information.
         }
 
-        public void PlaySocialReaction(PlayerSeat seat, SocialPropType type)
+        public void PlaySocialReaction(PlayerSeat seat, SocialPropType type, Vector3? impactPoint = null)
         {
             if (avatars.TryGetValue(seat, out var avatar) && avatar != null)
             {
-                if (avatarMotions.TryGetValue(seat, out var motion) && motion != null) motion.React(type);
-                if (type == SocialPropType.Tomato) StartCoroutine(TomatoReactionRoutine(avatar));
+                if (type == SocialPropType.Flower && avatarMotions.TryGetValue(seat, out var motion) && motion != null) motion.React(type);
+                if (type == SocialPropType.Tomato) StartCoroutine(TomatoReactionRoutine(avatar, impactPoint ?? Guandan.Game.AvatarTarget.GetImpactPoint(avatar)));
                 else StartCoroutine(FlowerReactionRoutine(avatar));
             }
         }
@@ -661,47 +661,78 @@ namespace Guandan.Scene
             return fallback;
         }
 
-        private IEnumerator TomatoReactionRoutine(Transform avatar)
+        private IEnumerator TomatoReactionRoutine(Transform avatar, Vector3 impact)
         {
-            var group = new GameObject("Reaction · 番茄酱");
-            group.transform.SetParent(runtimeRoot, false);
-            var towardTable = Vector3.ProjectOnPlane(tableCenter - avatar.position, Vector3.up).normalized;
-            group.transform.position = new Vector3(
-                avatar.position.x + towardTable.x * 0.28f,
-                avatar.position.y + 0.025f,
-                avatar.position.z + towardTable.z * 0.28f);
-            FaceReactionToCamera(group.transform);
-            var sauce = CreateEffectPrimitive(PrimitiveType.Cylinder, "Sauce", group.transform, new Color(0.64f, 0.025f, 0.012f));
-            sauce.transform.localScale = new Vector3(0.50f, 0.012f, 0.38f);
-            for (var index = 0; index < 7; index++)
+            var group = new GameObject("Reaction · Tomato body impact");
+            group.transform.SetParent(Guandan.Game.AvatarTarget.GetImpactAttachment(avatar), true);
+            group.transform.position = impact;
+            var viewer = Camera.main;
+            var outward = Vector3.ProjectOnPlane((viewer != null ? viewer.transform.position : tableCenter) - impact, Vector3.up).normalized;
+            if (outward.sqrMagnitude < 0.01f) outward = Vector3.back;
+            group.transform.rotation = Quaternion.LookRotation(outward, Vector3.up);
+            // Flatten the sauce against the chest, with a broken edge and pale seeds.
+            var marks = new Transform[9];
+            var sizes = new Vector3[marks.Length];
+            for (var i = 0; i < marks.Length; i++)
             {
-                var angle = index / 7f * Mathf.PI * 2f;
-                var drop = CreateEffectPrimitive(PrimitiveType.Sphere, $"Splash_{index + 1}", group.transform, new Color(0.78f, 0.045f, 0.018f));
-                drop.transform.localPosition = new Vector3(Mathf.Cos(angle) * 0.48f, 0.014f, Mathf.Sin(angle) * 0.34f);
-                drop.transform.localScale = new Vector3(0.10f + index % 3 * 0.025f, 0.018f, 0.075f);
+                var angle = i * 2.39996f;
+                var seed = i >= 7;
+                var mark = CreateEffectPrimitive(PrimitiveType.Sphere, seed ? "Tomato seed" : "Sauce patch", group.transform,
+                    seed ? new Color(1f, 0.76f, 0.29f) : new Color(0.9f, 0.10f + i * 0.009f, 0.025f));
+                marks[i] = mark.transform;
+                marks[i].localPosition = i == 0 ? Vector3.zero : new Vector3(Mathf.Cos(angle) * 0.16f, Mathf.Sin(angle) * 0.17f, seed ? 0.026f : 0.002f);
+                sizes[i] = seed ? new Vector3(0.018f, 0.032f, 0.01f) : i == 0 ? new Vector3(0.39f, 0.36f, 0.045f) : new Vector3(0.15f, 0.18f, 0.03f);
+                marks[i].localScale = Vector3.zero;
             }
-            group.transform.localScale = Vector3.zero;
-            for (var time = 0f; time < 2.8f; time += Time.deltaTime)
+            var drops = new Transform[8];
+            var velocities = new Vector3[drops.Length];
+            var burst = new GameObject("Reaction · Tomato droplets");
+            burst.transform.SetParent(runtimeRoot, false);
+            burst.transform.SetPositionAndRotation(impact, group.transform.rotation);
+            for (var i = 0; i < drops.Length; i++)
             {
-                var appear = Mathf.Clamp01(time / 0.20f);
-                var disappear = time < 2.25f ? 1f : 1f - Mathf.Clamp01((time - 2.25f) / 0.55f);
-                group.transform.localScale = Vector3.one * Mathf.SmoothStep(0f, 1f, appear) * disappear;
-                FaceReactionToCamera(group.transform);
+                var angle = i * 2.39996f;
+                drops[i] = CreateEffectPrimitive(PrimitiveType.Sphere, "Juice drop", burst.transform, new Color(1f, 0.17f, 0.035f)).transform;
+                drops[i].localScale = Vector3.one * (0.025f + (i % 3) * 0.012f);
+                velocities[i] = new Vector3(Mathf.Cos(angle) * 0.60f, 0.30f + Mathf.Sin(angle) * 0.50f, 0.23f + (i % 4) * 0.10f);
+            }
+            for (var time = 0f; time < 3.2f; time += Time.deltaTime)
+            {
+                if (avatar == null || group == null) break;
+                // Keep the sauce on the player-visible chest surface as the sitting
+                // animation moves. Only the effect transform changes, never a body bone.
+                group.transform.position = Guandan.Game.AvatarTarget.GetImpactPoint(avatar) + outward * 0.04f;
+                if (viewer != null)
+                {
+                    var facing = viewer.transform.position - group.transform.position;
+                    if (facing.sqrMagnitude > 0.001f) group.transform.rotation = Quaternion.LookRotation(facing, Vector3.up);
+                }
+                var appear = Mathf.Lerp(0.25f, 1f, Mathf.Clamp01(time / 0.10f));
+                var fade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(2.4f, 3.2f, time));
+                for (var i = 0; i < marks.Length; i++)
+                {
+                    marks[i].localScale = sizes[i] * appear * fade;
+                    if (i > 0 && i < 7) marks[i].localPosition += Vector3.down * (0.024f * Time.deltaTime);
+                }
+                for (var i = 0; i < drops.Length; i++)
+                {
+                    drops[i].gameObject.SetActive(time < 0.7f);
+                    if (time >= 0.7f) continue;
+                    drops[i].localPosition = velocities[i] * time + Vector3.down * (2.5f * time * time);
+                    drops[i].localScale = Vector3.one * (0.025f + (i % 3) * 0.012f) * (1f - time / 0.7f);
+                }
                 yield return null;
             }
-            Destroy(group);
+            DestroyEffect(group);
+            DestroyEffect(burst);
         }
 
-        private static void FaceReactionToCamera(Transform reaction)
+        private static void DestroyEffect(GameObject effect)
         {
-            if (reaction == null) return;
-            var camera = Camera.main ?? FindFirstObjectByType<Camera>();
-            if (camera == null) return;
-            var direction = Vector3.ProjectOnPlane(camera.transform.position - reaction.position, Vector3.up);
-            if (direction.sqrMagnitude < 0.0001f) return;
-            // Keep the sauce on the ground while rotating its authored front toward
-            // the current viewer, so a head turn never reveals a sideways decal.
-            reaction.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            if (effect == null) return;
+            foreach (var renderer in effect.GetComponentsInChildren<Renderer>(true))
+                if (renderer.sharedMaterial != null) Destroy(renderer.sharedMaterial);
+            Destroy(effect);
         }
 
         private IEnumerator FlowerReactionRoutine(Transform avatar)

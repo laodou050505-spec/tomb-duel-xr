@@ -18,3 +18,7 @@
 *.p12
 *.pfx
 *.key
+
+# Local build logs and rollback snapshots
+*.log
+_RollbackSafety/
